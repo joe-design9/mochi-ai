@@ -139,7 +139,7 @@ final class AppleIntelligenceEngine {
             // Context window full: rebuild the session from a compact
             // preamble and retry exactly once.
             dropSession(conversationID: conversationID)
-            let fresh = session(for: conversationID, profile: profile)
+            let fresh = self.session(for: conversationID, profile: profile)
             do {
                 let text = try await ask(
                     fresh,
