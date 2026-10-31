@@ -558,7 +558,7 @@ final class GeminiLiveEngine: ObservableObject {
                 frameCapacity: buffer.frameLength
               ) else { return nil }
         copy.frameLength = buffer.frameLength
-        let source = UnsafeMutableAudioBufferListPointer(buffer.audioBufferList)
+        let source = UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList)
         let target = UnsafeMutableAudioBufferListPointer(copy.mutableAudioBufferList)
         for index in 0..<min(source.count, target.count) {
             target[index].mDataByteSize = source[index].mDataByteSize
