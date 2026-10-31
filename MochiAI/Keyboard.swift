@@ -17,8 +17,10 @@ import UIKit
 //    handler consults the guard's "last input touch" timestamp so a tap
 //    that just focused a field never instantly unfocuses it again.
 //
-// The "Fertig" toolbar remains in the forms as a secondary backup, and
-// `.scrollDismissesKeyboard(.interactively)` stays on the scroll views.
+// There is NO keyboard toolbar anywhere: dismissal is tap-outside
+// only (a "Fertig" button was explicitly rejected by the user), and
+// `.scrollDismissesKeyboard(.interactively)` stays on the scroll views
+// as the second mechanism.
 
 enum KeyboardDismisser {
     /// Resigns whatever is currently first responder (field/search bar).

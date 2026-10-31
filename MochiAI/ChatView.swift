@@ -6,6 +6,10 @@ enum Haptics {
     static func light() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
+
+    static func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
 }
 
 /// Chat tab in the Muse identity — full Liquid Glass like the real
@@ -105,6 +109,7 @@ struct ChatView: View {
 #if QA
         .overlay(alignment: .topTrailing) { qaStatusBadge }
         .task { await runQASendFlowIfRequested() }
+        .task { await presentQACallPreviewIfRequested() }
 #endif
         .onAppear {
             // Apple-KI mode: warm the on-device session up in the
@@ -384,6 +389,7 @@ struct ChatView: View {
                 // (full Muse-app look).
                 Text(message.text)
                     .font(.body)
+                    .textSelection(.enabled)
                     .foregroundStyle(Palette.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
@@ -393,6 +399,7 @@ struct ChatView: View {
                 Spacer(minLength: 48)
                 Text(message.text)
                     .font(.body)
+                    .textSelection(.enabled)
                     .foregroundStyle(Palette.ink)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -458,6 +465,7 @@ struct ChatView: View {
                 // Deliberately never disabled: back-to-back messages
                 // queue up in the store and are answered one after
                 // another.
+                .transition(.scale(scale: 0.5).combined(with: .opacity))
             } else {
                 // Empty field: the send button becomes the call button
                 // (phone glyph in a glass circle) — tap to start a real
@@ -481,6 +489,7 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Anrufen")
+                .transition(.scale(scale: 0.5).combined(with: .opacity))
             }
         }
         .padding(10)
@@ -488,6 +497,8 @@ struct ChatView: View {
             .regular.tint(Palette.glassTint),
             in: RoundedRectangle(cornerRadius: 28, style: .continuous)
         )
+        // The send/call button morphs as text comes and goes.
+        .animation(.easeInOut(duration: 0.18), value: hasText)
         .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 8)
@@ -695,6 +706,17 @@ struct ChatView: View {
         sendCurrentInput()
         await wait(2.0)
         qaPhase = "after2"
+    }
+
+    /// `-QACallPreview`: opens the call screen WITHOUT starting a call
+    /// (CallView checks the same argument and skips its controller),
+    /// so CI can screenshot the call screen's glass surfaces — no
+    /// microphone prompt, no network, no permissions involved.
+    private func presentQACallPreviewIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("-QACallPreview")
+        else { return }
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        showingCall = true
     }
 #endif
 }

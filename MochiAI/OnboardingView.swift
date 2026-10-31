@@ -42,6 +42,7 @@ struct OnboardingView: View {
         ScrollView {
             VStack(spacing: 22) {
                 header
+                stepDots
                 if step < questions.count {
                     questionCard(questions[step], index: step)
                 } else if step == questions.count {
@@ -57,14 +58,6 @@ struct OnboardingView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnTap()
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Fertig") { isFieldFocused = false }
-                    .font(.body.weight(.semibold))
-                    .tint(Palette.accent)
-            }
-        }
     }
 
     // MARK: Header
@@ -80,6 +73,18 @@ struct OnboardingView: View {
                 .foregroundStyle(Palette.secondaryText)
                 .multilineTextAlignment(.center)
         }
+    }
+
+    /// Progress dots: four questions, the summary, the connect step.
+    private var stepDots: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<(questions.count + 2), id: \.self) { index in
+                Circle()
+                    .fill(index <= step ? Palette.accent : Palette.subtleFill)
+                    .frame(width: 7, height: 7)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: step)
     }
 
     // MARK: Question step

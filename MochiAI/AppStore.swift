@@ -246,11 +246,38 @@ final class AppStore: ObservableObject {
     /// configuration, and even there nothing happens without the
     /// launch argument. Purely local — no network, no API key — and
     /// the seed reuses the regular profile/message models.
+    ///
+    /// Capture-matrix arguments (v2.3.0):
+    /// - `-QAStartTab <0-4>` opens that tab instead of Chat, so CI can
+    ///   screenshot every tab's surfaces with the seeded content.
+    /// - `-QAEmpty` seeds the profile ONLY: no messages, no goals, no
+    ///   saved items and every pool idea dismissed — the real first /
+    ///   empty states a user actually sees, for the glass inspection.
     private func seedUITestDataIfRequested() {
-        guard ProcessInfo.processInfo.arguments.contains("-UITestMode")
-        else { return }
-        profile = UserProfile(name: "QA Tester", relax: "", hobby: "", teleport: "")
-        selectedTab = .chat
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-UITestMode") else { return }
+        var startTab = Tab.chat
+        if let index = arguments.firstIndex(of: "-QAStartTab"),
+           index + 1 < arguments.count,
+           let rawValue = Int(arguments[index + 1]),
+           let tab = Tab(rawValue: rawValue) {
+            startTab = tab
+        }
+        profile = UserProfile(
+            name: "QA Tester",
+            relax: "Serien schauen",
+            hobby: "Gaming",
+            teleport: "Leonida"
+        )
+        selectedTab = startTab
+        if arguments.contains("-QAEmpty") {
+            messages = []
+            goals = []
+            savedItems = []
+            customIdeas = []
+            dismissedIdeaIDs = IdeaPool.all.map(\.id)
+            return
+        }
         let now = Date()
         messages = [
             ChatMessage(

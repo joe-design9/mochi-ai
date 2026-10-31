@@ -75,6 +75,14 @@ struct CallView: View {
             .padding(.bottom, 16)
         }
         .onAppear {
+#if QA
+            // QA screenshot mode (-QACallPreview): render the surface
+            // only — never start a real call in CI (no microphone
+            // prompt, no network).
+            if ProcessInfo.processInfo.arguments.contains("-QACallPreview") {
+                return
+            }
+#endif
             controller.start(store: store) { dismiss() }
         }
         .onDisappear {

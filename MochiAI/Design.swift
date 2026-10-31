@@ -23,6 +23,45 @@ struct BookmarkButton: View {
     }
 }
 
+// MARK: - Empty state (Ideas / Goals / Library)
+
+/// One consistent empty-state card for the tabs: a neutral Liquid
+/// Glass disc with the icon (the same visual grammar as the call
+/// screen's companion disc), a rounded title and a muted explanation.
+struct EmptyStateCard: View {
+    let icon: String
+    let title: String
+    let text: String
+
+    var body: some View {
+        Card {
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .glassEffect(
+                            .regular.tint(Palette.glassTint),
+                            in: Circle()
+                        )
+                        .frame(width: 62, height: 62)
+                    Image(systemName: icon)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Palette.secondaryText)
+                }
+                Text(title)
+                    .font(.system(.headline, design: .rounded).weight(.bold))
+                    .foregroundStyle(Palette.ink)
+                    .multilineTextAlignment(.center)
+                Text(text)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+        }
+    }
+}
+
 // MARK: - Progress ring (Goals)
 
 struct ProgressRing: View {

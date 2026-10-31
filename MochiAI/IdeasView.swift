@@ -31,18 +31,11 @@ struct IdeasView: View {
                 }
 
                 if store.visibleIdeas.isEmpty {
-                    Card {
-                        VStack(spacing: 8) {
-                            Image(systemName: "lightbulb.slash")
-                                .font(.system(size: 26))
-                                .foregroundStyle(Palette.secondaryText)
-                            Text("Alles verworfen — stark. Leg oben eine eigene Idee an.")
-                                .font(.subheadline)
-                                .foregroundStyle(Palette.secondaryText)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
+                    EmptyStateCard(
+                        icon: "lightbulb.slash",
+                        title: "Alles verworfen — stark.",
+                        text: "Leg oben eine eigene Idee an, wenn dir etwas Neues einfällt."
+                    )
                 } else {
                     ForEach(store.visibleIdeas) { idea in
                         ideaCard(idea)
@@ -166,13 +159,5 @@ struct NewIdeaSheet: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Fertig") { isFieldFocused = false }
-                    .font(.body.weight(.semibold))
-                    .tint(Palette.accent)
-            }
-        }
     }
 }

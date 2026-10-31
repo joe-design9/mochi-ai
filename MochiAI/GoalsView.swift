@@ -32,12 +32,11 @@ struct GoalsView: View {
                 }
 
                 if store.goals.isEmpty {
-                    Card {
-                        Text("Noch keine Ziele — leg oben dein erstes an.")
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.secondaryText)
-                            .frame(maxWidth: .infinity)
-                    }
+                    EmptyStateCard(
+                        icon: "target",
+                        title: "Noch keine Ziele",
+                        text: "Leg oben dein erstes Ziel an — kleine Schritte zählen doppelt."
+                    )
                 } else {
                     ForEach(store.goals) { goal in
                         goalCard(goal)
@@ -128,6 +127,7 @@ struct GoalsView: View {
             return
         }
         store.goals[goalIndex].steps[stepIndex].done.toggle()
+        Haptics.selection()
     }
 }
 
@@ -184,13 +184,5 @@ struct NewGoalSheet: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .dismissKeyboardOnTap()
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Fertig") { isFieldFocused = false }
-                    .font(.body.weight(.semibold))
-                    .tint(Palette.accent)
-            }
-        }
     }
 }

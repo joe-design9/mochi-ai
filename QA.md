@@ -54,3 +54,30 @@ xcrun simctl io booted screenshot chat-verankerung.png
   Gesprächsende / die letzte Testtext-Zeile („…sonst ist die
   Verankerung falsch herum") oder die Textmitte — dann steht die
   Ansicht am falschen Anker und die Version geht nicht raus.
+
+## Erweiterte Capture-Matrix (ab v2.3.0)
+
+Der QA-Workflow (`.github/workflows/mochi-qa.yml`, temporär per
+Browser hochgeladen) fotografiert auf einem **iPhone 15 Pro Max**
+(nicht „irgendein iPhone") mit erzwungener Software-Tastatur die
+komplette Oberfläche — zwei volle Läufe, beide müssen grün sein:
+
+| Datei | Start | Prüft |
+|---|---|---|
+| `onboarding.png` | frische Installation, **keine** Argumente | echtes Onboarding (erster Screen) |
+| `chat.png` | `-UITestMode -QASendFlow` (Phase 0) | lange Antwort oben verankert |
+| `sendflow1.png` / `sendflow2.png` | Send-Flow-Phasen 1/2 | Antwort sichtbar, unten verankert, `focus=1` im Badge (Tastatur bleibt offen) |
+| `feed.png` | `-UITestMode -QAStartTab 1` | Feed inkl. GTA-6-Countdown-Karte |
+| `ideas.png` | `-UITestMode -QAStartTab 2` | Ideen-Karten |
+| `goals.png` | `-UITestMode -QAStartTab 3` | Ziele mit Fortschrittsringen |
+| `library.png` | `-UITestMode -QAStartTab 4` | Bibliothek inkl. About-Zeile „Version 2.3.0" |
+| `chat-empty.png` | `-UITestMode -QAEmpty` | echter Chat-Leerzustand (Willkommens-Hero) |
+| `ideas-empty.png` | `-UITestMode -QAEmpty -QAStartTab 2` | Ideen-Leerzustand |
+| `goals-empty.png` | `-UITestMode -QAEmpty -QAStartTab 3` | Ziele-Leerzustand |
+| `library-empty.png` | `-UITestMode -QAEmpty -QAStartTab 4` | Bibliothek mit leerer Gespeichert-Sektion |
+| `call.png` | `-UITestMode -QACallPreview` | Anruf-Screen rendert nur (Controller startet nicht: kein Mikrofon-Dialog, kein Netz) |
+
+Jede Glasfläche wird gegen das freigegebene Rezept geprüft: native
+TabView, `glassTint` (dunkel: Weiß 0,08 @ 52 %) auf jeder neutralen
+Glasfläche, Rim-Gradient 0,30 → 0,04, Backdrop reines Schwarz +
+Sheen 0,075 — keine flachen Plastik-Fills.

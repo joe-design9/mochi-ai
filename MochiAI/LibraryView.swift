@@ -21,8 +21,9 @@ struct LibraryView: View {
     /// to silently wipe unsaved edits and test results).
     @State private var didLoadDrafts = false
 
-    /// Shared focus for all settings text fields — drives the keyboard
-    /// toolbar ("Fertig") so the keyboard can always be dismissed.
+    /// Shared focus for all settings text fields. Dismissal is
+    /// tap-outside only (the screen-level gesture plus interactive
+    /// scroll dismissal) — deliberately no keyboard toolbar.
     @FocusState private var isFieldFocused: Bool
 
     private enum TestResult {
@@ -48,14 +49,6 @@ struct LibraryView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnTap()
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Fertig") { isFieldFocused = false }
-                    .font(.body.weight(.semibold))
-                    .tint(Palette.accent)
-            }
-        }
         .onAppear {
             if !didLoadDrafts {
                 loadDrafts()
@@ -150,11 +143,11 @@ struct LibraryView: View {
         VStack(alignment: .leading, spacing: 12) {
             FieldLabel(text: "Gespeichert")
             if store.savedItems.isEmpty {
-                Card {
-                    Text("Noch nichts gespeichert. Tippe im Feed oder bei den Ideen auf ein Lesezeichen — dann landet es hier.")
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.secondaryText)
-                }
+                EmptyStateCard(
+                    icon: "bookmark.slash",
+                    title: "Noch nichts gespeichert",
+                    text: "Tippe im Feed oder bei den Ideen auf ein Lesezeichen — dann landet es hier."
+                )
             } else {
                 ForEach(store.savedItems) { item in
                     Card(cornerRadius: 16) {

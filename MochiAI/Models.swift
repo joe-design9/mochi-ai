@@ -12,8 +12,12 @@ struct UserProfile: Codable {
 // MARK: - App info
 
 enum AppInfo {
-    /// Shown in the library's About card; keep in sync with MARKETING_VERSION.
-    static let version = "2.2.2"
+    /// Shown in the library's About card. Derived from the bundle so it
+    /// can never drift from MARKETING_VERSION again — v2.2.3 shipped
+    /// with a hand-maintained string that still said "2.2.2".
+    static var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
 }
 
 // MARK: - Chat

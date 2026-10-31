@@ -188,7 +188,7 @@ private struct CountdownCard: View {
 
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {
                     Image(systemName: "gamecontroller.fill")
                         .font(.system(size: 15, weight: .semibold))
@@ -227,12 +227,13 @@ private struct CountdownCard: View {
                 .font(.system(.title2, design: .rounded).weight(.bold))
                 .foregroundStyle(Palette.ink)
                 .monospacedDigit()
+                .contentTransition(.numericText())
             Text(label)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Palette.secondaryText)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .glassEffect(
             .regular.tint(Palette.glassTint),
             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
