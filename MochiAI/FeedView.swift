@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Feed tab: greeting row with companion, countdown, profile vibes,
 /// daily card, casino promo, idea teaser — Liquid Glass cards, rounded
-/// titles, on the plum-and-glow backdrop.
+/// titles, monochrome on the black backdrop.
 struct FeedView: View {
     @EnvironmentObject private var store: AppStore
 
@@ -109,10 +109,10 @@ struct FeedView: View {
                     Text("APP")
                         .font(.caption2.weight(.black))
                         .tracking(0.8)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Palette.primaryText)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(Palette.accent))
+                        .background(Capsule().fill(Palette.primaryFill))
                     Spacer()
                     BookmarkButton(item: SavedItem(id: "feed:casino", title: "Muse Royal Casino",
                                                    subtitle: "32 Slots warten — nur Spielgeld", kind: "Feed"))
@@ -233,9 +233,9 @@ private struct CountdownCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Palette.subtleFill)
+        .glassEffect(
+            .regular.tint(Palette.glassTint),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
     }
 }

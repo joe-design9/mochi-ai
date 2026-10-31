@@ -1,8 +1,9 @@
 import Foundation
 
-/// Selectable API providers. Gemini uses Google's native generateContent
-/// REST API; the generic provider speaks the OpenAI-compatible
-/// chat-completions protocol (Bearer key, /chat/completions).
+/// Selectable API providers. Gemini uses Google's Interactions API
+/// (with the legacy generateContent endpoint as fallback); the generic
+/// provider speaks the OpenAI-compatible chat-completions protocol
+/// (Bearer key, /chat/completions).
 enum APIProvider: String, CaseIterable, Identifiable {
     case gemini
     case openAICompatible

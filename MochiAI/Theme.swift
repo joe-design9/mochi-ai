@@ -1,54 +1,62 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Palette (Muse/Mochi identity: deep ink-plum + pink→violet Vice glow)
+// MARK: - Palette (Muse identity: monochrome — pure black + neutral glass)
 //
-// Dark mode is the hero: deep plum surfaces, pink-violet gradient accents,
-// real Liquid Glass cards over a softly glowing backdrop. Light mode maps
-// to a soft lilac-white with the same accent family. No terracotta, no
-// paper/cream, no serif — SF Rounded headings, plain sans body.
+// The real Muse app's dark UI: a pure-black canvas, neutral/clear Liquid
+// Glass surfaces on top, white as the only "accent". NO hue anywhere in
+// the UI chrome — no pink, no violet, no blue, no gradient hues. (The
+// companion characters' artwork keeps its own colors; that's the mascot,
+// not the palette.) Light mode is the same system in clean white /
+// light-gray monochrome. SF Rounded headings, plain sans body.
 
 enum Palette {
-    /// Pink→violet gradient endpoints (brand accent).
-    static let accentPink = Color(red: 0.910, green: 0.475, blue: 0.776)   // #E879C6
-    static let accentViolet = Color(red: 0.545, green: 0.486, blue: 0.965) // #8B7CF6
+    /// The monochrome accent: links, checkmarks, active states, the
+    /// progress ring. White on black (dark) / near-black on white (light).
+    static let accent = dynamic(light: 0x111113, dark: 0xFFFFFF)
 
-    /// The brand gradient: send button, primary buttons, highlights.
-    static let accentGradient = LinearGradient(
-        colors: [accentPink, accentViolet],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
+    /// Primary-button fill (send button, primary capsules/blocks):
+    /// solid white in dark mode, solid near-black in light mode.
+    static let primaryFill = dynamic(light: 0x111113, dark: 0xFFFFFF)
+    /// Glyph/text color on top of `primaryFill`.
+    static let primaryText = dynamic(light: 0xFFFFFF, dark: 0x000000)
 
-    /// Solid accent for small text/icons (links, checkmarks, active states).
-    static let accent = dynamic(light: 0x7A5AF8, dark: 0xB79CFF)
-
-    /// Screen base behind the glows: deep ink-plum / soft lilac-white.
-    static let paper = dynamic(light: 0xF3EFFC, dark: 0x17131F)
+    /// Screen base: pure black (dark) / clean light gray (light).
+    static let paper = dynamic(light: 0xF4F4F6, dark: 0x000000)
     /// Elevated solid surface (fallbacks, picker checkmark backing).
-    static let card = dynamic(light: 0xFDFCFF, dark: 0x221C2E)
+    static let card = dynamic(light: 0xFFFFFF, dark: 0x131315)
     /// Solid fill for text fields (glass or solid only — never a material).
-    static let fieldFill = dynamic(light: 0xFFFFFF, dark: 0x2A2140)
+    static let fieldFill = dynamic(light: 0xFFFFFF, dark: 0x1B1B1E)
     /// Primary text.
-    static let ink = dynamic(light: 0x251B36, dark: 0xF5F1FC)
-    /// Secondary / muted text (lavender gray).
-    static let secondaryText = dynamic(light: 0x6E6390, dark: 0xB3A8CF)
-    /// Hairline borders: violet-tinted.
+    static let ink = dynamic(light: 0x131315, dark: 0xF5F5F7)
+    /// Secondary / muted text (neutral gray).
+    static let secondaryText = dynamic(light: 0x6E6E73, dark: 0xA7A7AD)
+    /// Hairline borders: neutral.
     static let hairline = dynamicColor(
         light: UIColor(white: 0, alpha: 0.08),
         dark: UIColor(white: 1, alpha: 0.14)
     )
     /// Subtle neutral fill: chips, inset areas, progress-ring track.
-    static let subtleFill = dynamic(light: 0xE6DEF9, dark: 0x322A4D)
-    /// Tint for the Liquid Glass surfaces (violet, translucent).
+    static let subtleFill = dynamic(light: 0xE9E9ED, dark: 0x26262A)
+    /// Tint for the Liquid Glass surfaces: neutral smoky glass.
     static let glassTint = dynamicColor(
-        light: UIColor(white: 1, alpha: 0.42),
-        dark: UIColor(red: 0.16, green: 0.12, blue: 0.27, alpha: 0.52)
+        light: UIColor(white: 1, alpha: 0.55),
+        dark: UIColor(white: 0.08, alpha: 0.52)
     )
-    /// Tint for user chat bubbles: accent-washed glass.
+    /// Tint for user chat bubbles: slightly brighter neutral glass.
     static let userBubbleTint = dynamicColor(
-        light: UIColor(red: 0.545, green: 0.486, blue: 0.965, alpha: 0.20),
-        dark: UIColor(red: 0.545, green: 0.486, blue: 0.965, alpha: 0.34)
+        light: UIColor(white: 0, alpha: 0.08),
+        dark: UIColor(white: 1, alpha: 0.16)
+    )
+    /// Top edge of the glass highlight stroke (bright, fades downward).
+    static let glassHighlightTop = dynamicColor(
+        light: UIColor(white: 1, alpha: 0.85),
+        dark: UIColor(white: 1, alpha: 0.30)
+    )
+    /// Bottom edge of the glass highlight stroke (nearly gone).
+    static let glassHighlightBottom = dynamicColor(
+        light: UIColor(white: 1, alpha: 0.25),
+        dark: UIColor(white: 1, alpha: 0.04)
     )
     /// Success / saved state.
     static let success = dynamic(light: 0x2F9E44, dark: 0x5BD97A)
@@ -75,18 +83,19 @@ enum Palette {
     }
 }
 
-// MARK: - Backdrop (static Vice-style glows over the plum base — cheap:
-// three radial gradients, no blur stacks, no animation)
+// MARK: - Backdrop (pure black canvas + an extremely subtle NEUTRAL
+// sheen — monochrome only, no hue; just enough depth for the glass
+// above it to refract, like the real Muse app's dark UI)
 //
-// LAYOUT SAFETY (v2.0.1 fix): the backdrop must NEVER take part in the
-// layout of anything around it. The v2.0.0 version put 520–640pt circles
-// in a plain ZStack — the stack sized itself to its largest child, the
-// root view inflated well beyond the screen, and all sibling content
-// (header, greeting, input bar) laid out against that inflated width
-// and clipped on both edges. Now the backdrop lives in a GeometryReader
-// sized exactly to the screen: glow circles are placed with .position()
-// inside that fixed frame and clipped, so their size can never
-// propagate into any parent layout.
+// LAYOUT SAFETY (v2.0.1 fix, kept): the backdrop must NEVER take part
+// in the layout of anything around it. The v2.0.0 version put
+// 520–640pt glow circles in a plain ZStack — the stack sized itself to
+// its largest child, the root view inflated well beyond the screen, and
+// all sibling content (header, greeting, input bar) laid out against
+// that inflated width and clipped on both edges. The backdrop lives in
+// a GeometryReader sized exactly to the screen: the sheen circles are
+// placed with .position() inside that fixed frame and clipped, so
+// their size can never propagate into any parent layout.
 
 struct AppBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -95,45 +104,33 @@ struct AppBackdrop: View {
         GeometryReader { proxy in
             let size = proxy.size
             let dark = colorScheme == .dark
-            // One generous glow diameter, derived from the screen only.
-            let glow = max(size.width, size.height) * 1.25
+            // One generous sheen diameter, derived from the screen only.
+            let sheen = max(size.width, size.height) * 1.15
             ZStack {
                 Palette.paper
-                // Pink glow, top-left — the main color wash.
+                // Neutral sheen, top — a whisper of gray light on the
+                // black canvas (in light mode: white on light gray).
                 Circle()
                     .fill(RadialGradient(
                         colors: [
-                            Palette.accentPink.opacity(dark ? 0.58 : 0.38),
-                            Palette.accentViolet.opacity(dark ? 0.20 : 0.12),
+                            Color.white.opacity(dark ? 0.075 : 0.55),
                             .clear,
                         ],
-                        center: .center, startRadius: 0, endRadius: glow / 2
+                        center: .center, startRadius: 0, endRadius: sheen / 2
                     ))
-                    .frame(width: glow, height: glow)
-                    .position(x: size.width * 0.08, y: size.height * 0.02)
-                // Violet glow, right edge, upper-middle.
+                    .frame(width: sheen, height: sheen)
+                    .position(x: size.width * 0.5, y: size.height * -0.06)
+                // Fainter counter-sheen, bottom-right, for depth.
                 Circle()
                     .fill(RadialGradient(
                         colors: [
-                            Palette.accentViolet.opacity(dark ? 0.52 : 0.34),
-                            Palette.accentPink.opacity(dark ? 0.16 : 0.10),
+                            Color.white.opacity(dark ? 0.04 : 0.35),
                             .clear,
                         ],
-                        center: .center, startRadius: 0, endRadius: glow / 2
+                        center: .center, startRadius: 0, endRadius: sheen / 2
                     ))
-                    .frame(width: glow, height: glow)
-                    .position(x: size.width * 1.02, y: size.height * 0.44)
-                // Pink glow, bottom — keeps the lower half warm too.
-                Circle()
-                    .fill(RadialGradient(
-                        colors: [
-                            Palette.accentPink.opacity(dark ? 0.34 : 0.22),
-                            .clear,
-                        ],
-                        center: .center, startRadius: 0, endRadius: glow / 2
-                    ))
-                    .frame(width: glow, height: glow)
-                    .position(x: size.width * 0.22, y: size.height * 1.04)
+                    .frame(width: sheen, height: sheen)
+                    .position(x: size.width * 0.9, y: size.height * 1.02)
             }
             .frame(width: size.width, height: size.height)
             .clipped()
@@ -148,11 +145,25 @@ struct AppBackdrop: View {
 // color — never .ultraThinMaterial or any other material fallback.
 
 extension View {
-    /// Real Liquid Glass card surface (violet-tinted regular glass).
+    /// Real Liquid Glass card surface: neutral smoky regular glass plus
+    /// a 1pt highlight stroke that is bright at the top edge and fades
+    /// downward — the light-catching rim that makes glass read as glass
+    /// (a plain gradient stroke, NOT a material).
     func glassCard(cornerRadius: CGFloat = 22) -> some View {
         glassEffect(
             .regular.tint(Palette.glassTint),
             in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Palette.glassHighlightTop, Palette.glassHighlightBottom],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
         )
     }
 
@@ -173,26 +184,27 @@ extension View {
             )
     }
 
-    /// Gradient-filled capsule label (primary small buttons).
+    /// Solid monochrome capsule label (primary small buttons): white
+    /// fill + black text in dark mode, inverted in light mode.
     func accentCapsule() -> some View {
         self
             .font(.subheadline.weight(.bold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Palette.primaryText)
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
-            .background(Capsule().fill(Palette.accentGradient))
+            .background(Capsule().fill(Palette.primaryFill))
     }
 
-    /// Gradient-filled full-width block label (primary sheet buttons).
+    /// Solid monochrome full-width block label (primary sheet buttons).
     func accentBlock() -> some View {
         self
             .font(.headline.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Palette.primaryText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Palette.accentGradient)
+                    .fill(Palette.primaryFill)
             )
     }
 
@@ -263,15 +275,19 @@ struct FieldLabel: View {
     }
 }
 
-// MARK: - Companion with brand glow halo
+// MARK: - Companion with neutral light halo
 
-/// The companion is the brand element: a soft pink→violet radial halo
-/// behind it so it pops on the plum backdrop (empty state, headers,
-/// onboarding). The halo is a static radial gradient — no blur, no loop.
+/// The companion is the brand element: a whisper of neutral light
+/// behind it so the mascot lifts off the black canvas (empty state,
+/// headers, onboarding). Monochrome like everything else — the
+/// character's own artwork colors are the only colors here. The halo
+/// is a static radial gradient — no blur, no loop.
 struct CompanionGlow: View {
     let character: CompanionID
     var size: CGFloat = 64
     var animated: Bool = true
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         // The halo is background content: background views never change
@@ -285,11 +301,9 @@ struct CompanionGlow: View {
             .background {
                 Circle()
                     .fill(RadialGradient(
-                        colors: [
-                            Palette.accentPink.opacity(0.55),
-                            Palette.accentViolet.opacity(0.26),
-                            .clear,
-                        ],
+                        colors: colorScheme == .dark
+                            ? [Color.white.opacity(0.13), Color.white.opacity(0.04), .clear]
+                            : [Color.black.opacity(0.05), Color.black.opacity(0.02), .clear],
                         center: .center,
                         startRadius: 0,
                         endRadius: size * 0.95

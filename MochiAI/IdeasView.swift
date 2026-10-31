@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Ideas tab: built-in + custom idea cards with save/dismiss, plus a sheet
-/// to add your own idea — Liquid Glass cards on the plum backdrop.
+/// to add your own idea — Liquid Glass cards on the black backdrop.
 struct IdeasView: View {
     @EnvironmentObject private var store: AppStore
     @State private var showingNewIdea = false
@@ -94,10 +94,10 @@ struct IdeasView: View {
                             Text(isSaved ? "Gespeichert" : "Speichern")
                         }
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isSaved ? .white : Palette.primaryText)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 9)
-                        .background(Capsule().fill(isSaved ? Palette.success : Palette.accent))
+                        .background(Capsule().fill(isSaved ? Palette.success : Palette.primaryFill))
                     }
                     .buttonStyle(.plain)
 

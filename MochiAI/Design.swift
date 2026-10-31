@@ -36,7 +36,7 @@ struct ProgressRing: View {
             Circle()
                 .trim(from: 0, to: max(0.001, min(1, progress)))
                 .stroke(
-                    Palette.accentGradient,
+                    Palette.accent,
                     style: StrokeStyle(lineWidth: 5, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))

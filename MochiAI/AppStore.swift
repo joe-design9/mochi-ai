@@ -299,6 +299,7 @@ final class AppStore: ObservableObject {
         activeConversationID = nil
         activeDraft = Conversation()
         messages = []
+        prewarmActiveAppleSessionIfNeeded()
     }
 
     /// Makes the given conversation the active one and loads its messages.
@@ -308,6 +309,16 @@ final class AppStore: ObservableObject {
         persistActiveMessages()
         activeConversationID = id
         messages = conversation.messages
+        prewarmActiveAppleSessionIfNeeded()
+    }
+
+    /// In Apple-KI mode, warms up the on-device session of the
+    /// conversation currently on screen so its first answer starts
+    /// faster (chat appearing, conversation switches). No-op in
+    /// API-Key mode and when Apple Intelligence is unavailable.
+    func prewarmActiveAppleSessionIfNeeded() {
+        guard engineMode == .appleIntelligence else { return }
+        appleEngine.prewarm(conversationID: currentConversationID, profile: profile)
     }
 
     /// Flushes the visible messages into the active conversation before

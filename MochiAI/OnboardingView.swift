@@ -3,8 +3,9 @@ import SwiftUI
 /// First-launch flow: Muse (with the companion) introduces itself, asks four
 /// questions one at a time (chips + free text), shows a "what I learned"
 /// summary, and ends with an optional provider-connect step that can
-/// always be skipped. Liquid Glass cards on the plum backdrop, rounded
-/// titles, glowing companion. Every step works with the keyboard up:
+/// always be skipped. Liquid Glass cards on the black backdrop, rounded
+/// titles, companion with a neutral light halo. Every step works with
+/// the keyboard up:
 /// tap anywhere outside the field to put it away.
 struct OnboardingView: View {
     @EnvironmentObject private var store: AppStore
@@ -100,12 +101,12 @@ struct OnboardingView: View {
                             } label: {
                                 Text(chip)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(selected ? .white : Palette.ink)
+                                    .foregroundStyle(selected ? Palette.primaryText : Palette.ink)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
                                     .frame(maxWidth: .infinity)
                                     .background(
-                                        Capsule().fill(selected ? Palette.accent : Palette.subtleFill)
+                                        Capsule().fill(selected ? Palette.primaryFill : Palette.subtleFill)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -139,10 +140,10 @@ struct OnboardingView: View {
                         withAnimation { step += 1 }
                     }
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Palette.primaryText)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
-                    .background(Capsule().fill(Palette.accent))
+                    .background(Capsule().fill(Palette.primaryFill))
                     .buttonStyle(.plain)
                     .disabled(answers[index].trimmingCharacters(in: .whitespaces).isEmpty)
                     .opacity(answers[index].trimmingCharacters(in: .whitespaces).isEmpty ? 0.45 : 1)

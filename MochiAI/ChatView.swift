@@ -1,9 +1,18 @@
 import SwiftUI
+import UIKit
 
-/// Chat tab in the Muse/Mochi identity: assistant answers are plain text
-/// blocks with the companion beside them, user messages sit in an
-/// accent-tinted Liquid Glass bubble, and the empty state greets with
-/// the large glowing companion plus glass suggestion chips.
+/// Light haptic taps for the send/reply moments (premium feel, cheap).
+enum Haptics {
+    static func light() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+}
+
+/// Chat tab in the Muse identity — full Liquid Glass like the real
+/// Muse app: a glass header bar, assistant answers on neutral glass
+/// cards with the companion beside them, user messages in brighter
+/// smoky-glass bubbles, and the empty state greets with the large
+/// companion plus glass suggestion chips. All monochrome over black.
 /// Sending runs through the store's FIFO queue: the input is never
 /// disabled, messages appear instantly, calls run one at a time.
 /// Engine: API-Key mode, Apple KI (on-device), or Demo-Modus fallback.
@@ -12,6 +21,11 @@ struct ChatView: View {
     @State private var input = ""
     @State private var showingHistory = false
     @FocusState private var inputFocused: Bool
+
+    /// Tracks whether the user is scrolled to (near) the newest
+    /// message — auto-scroll on new replies only happens then, so
+    /// reading older messages is never interrupted.
+    @State private var isNearBottom = true
 
     /// Purely visual: the send arrow is full-strength with text present.
     /// Sending is ALWAYS possible — never gated on a running request.
@@ -22,7 +36,6 @@ struct ChatView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider().overlay(Palette.hairline)
 
             if store.messages.isEmpty && !store.isActiveConversationBusy {
                 emptyState
@@ -33,6 +46,11 @@ struct ChatView: View {
             inputBar
         }
         .dismissKeyboardOnTap()
+        .onAppear {
+            // Apple-KI mode: warm the on-device session up in the
+            // background so the first answer starts faster.
+            store.prewarmActiveAppleSessionIfNeeded()
+        }
         .sheet(isPresented: $showingHistory) {
             ChatHistorySheet()
         }
@@ -58,7 +76,7 @@ struct ChatView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(Color.orange)
+                            .fill(Palette.secondaryText)
                             .frame(width: 7, height: 7)
                         Text(store.fallbackChipLabel)
                             .font(.caption.weight(.semibold))
@@ -88,6 +106,11 @@ struct ChatView: View {
         .padding(.horizontal, 16)
         .padding(.top, 10)
         .padding(.bottom, 8)
+        // The header is a full-width Liquid Glass bar (Muse-app style).
+        .glassEffect(
+            .regular.tint(Palette.glassTint),
+            in: Rectangle()
+        )
     }
 
     // MARK: Empty state
@@ -111,6 +134,7 @@ struct ChatView: View {
                 VStack(spacing: 10) {
                     ForEach(suggestions, id: \.self) { suggestion in
                         Button {
+                            Haptics.light()
                             store.sendUserMessage(suggestion)
                         } label: {
                             Text(suggestion)
@@ -161,13 +185,42 @@ struct ChatView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
                 .padding(.bottom, 10)
+                .onAppear {
+                    // Open the conversation at its newest message.
+                    if store.isActiveConversationBusy {
+                        proxy.scrollTo("typing-indicator", anchor: .bottom)
+                    } else if let last = store.messages.last {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: store.messages.count) { _, _ in
-                scrollToBottom(proxy)
+            // Keep track of whether the user is near the newest
+            // message; only then does the list auto-follow new content.
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height
+                    - geometry.contentOffset.y
+                    - geometry.containerSize.height < 120
+            } action: { _, newValue in
+                isNearBottom = newValue
             }
-            .onChange(of: store.isActiveConversationBusy) { _, _ in
-                scrollToBottom(proxy)
+            .onChange(of: store.messages.count) { oldCount, newCount in
+                guard newCount > oldCount, let last = store.messages.last else { return }
+                if last.role == .assistant {
+                    // A reply arrived: subtle haptic (but not for the
+                    // seeded greeting in a brand-new conversation) and
+                    // follow it only if the user is near the bottom.
+                    if oldCount > 0 { Haptics.light() }
+                    if isNearBottom { scrollToBottom(proxy) }
+                } else {
+                    // The user's own message always scrolls into view.
+                    scrollToBottom(proxy)
+                }
+            }
+            .onChange(of: store.isActiveConversationBusy) { _, isBusy in
+                if isBusy && isNearBottom {
+                    scrollToBottom(proxy)
+                }
             }
         }
     }
@@ -176,10 +229,15 @@ struct ChatView: View {
         HStack(alignment: .top, spacing: 10) {
             if message.role == .assistant {
                 CompanionView(character: store.companion, size: 26, animated: false)
+                // Assistant answers sit on a neutral Liquid Glass card
+                // (full Muse-app look).
                 Text(message.text)
                     .font(.body)
                     .foregroundStyle(Palette.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .glassCard(cornerRadius: 18)
             } else {
                 Spacer(minLength: 48)
                 Text(message.text)
@@ -199,6 +257,12 @@ struct ChatView: View {
         HStack(alignment: .center, spacing: 10) {
             CompanionView(character: store.companion, size: 26, animated: false)
             TypingDots()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .glassEffect(
+                    .regular.tint(Palette.glassTint),
+                    in: Capsule()
+                )
             Spacer()
         }
     }
@@ -234,13 +298,13 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(hasText ? Palette.primaryText : Palette.secondaryText)
                     .frame(width: 36, height: 36)
                     .background(
                         Circle().fill(
                             hasText
-                                ? AnyShapeStyle(Palette.accentGradient)
-                                : AnyShapeStyle(Palette.secondaryText.opacity(0.4))
+                                ? AnyShapeStyle(Palette.primaryFill)
+                                : AnyShapeStyle(Palette.subtleFill)
                         )
                     )
             }
@@ -277,6 +341,7 @@ struct ChatView: View {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         input = ""
+        Haptics.light()
         store.sendUserMessage(text)
     }
 }
@@ -386,12 +451,15 @@ struct ChatHistorySheet: View {
                         .background(Capsule().fill(Palette.subtleFill))
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .glassCard(cornerRadius: 16)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .listRowBackground(Color.clear)
-        .listRowSeparatorTint(Palette.hairline)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
     }
 }
 

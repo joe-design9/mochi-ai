@@ -225,6 +225,8 @@ struct LibraryView: View {
             Card {
                 VStack(alignment: .leading, spacing: 14) {
                     FieldLabel(text: "KI-Modus")
+                    // The mode switch sits in its own Liquid Glass
+                    // container (Muse-app style mode picker).
                     Picker("KI-Modus", selection: engineModeBinding) {
                         ForEach(EngineMode.allCases) { mode in
                             Text(mode.displayName).tag(mode)
@@ -232,6 +234,11 @@ struct LibraryView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    .padding(4)
+                    .glassEffect(
+                        .regular.tint(Palette.glassTint),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
 
                     if store.engineMode == .appleIntelligence {
                         appleModeSection
@@ -298,7 +305,10 @@ struct LibraryView: View {
                                     .foregroundStyle(Palette.danger)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 10)
-                                    .background(Capsule().fill(Palette.subtleFill))
+                                    .glassEffect(
+                                        .regular.tint(Palette.glassTint).interactive(),
+                                        in: Capsule()
+                                    )
                             }
                             .buttonStyle(.plain)
                         }

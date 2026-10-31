@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// App root: the plum-and-glow backdrop, onboarding until a profile
-/// exists, otherwise the five tabs in a native TabView (iOS 26 renders
-/// its bar in real Liquid Glass), accent-tinted. Appearance follows the
-/// system — dark is the hero, light maps to soft lilac.
+/// App root: the pure-black backdrop with its subtle neutral sheen,
+/// onboarding until a profile exists, otherwise the five tabs in a
+/// native TabView (iOS 26 renders its bar in real Liquid Glass),
+/// white-tinted. Appearance follows the system — dark is the hero,
+/// light maps to clean light-gray monochrome.
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
 

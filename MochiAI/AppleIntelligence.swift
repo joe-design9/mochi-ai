@@ -111,6 +111,17 @@ final class AppleIntelligenceEngine {
         warmedConversations.removeAll()
     }
 
+    /// Warms up a conversation's session ahead of its first question
+    /// (the on-device model loads/compiles in the background), so the
+    /// first real answer starts faster. Called when the chat appears in
+    /// Apple-KI mode and on conversation switches. No-op when Apple
+    /// Intelligence is not available on this device.
+    func prewarm(conversationID: UUID, profile: UserProfile?) {
+        guard AppleAvailability.current.isAvailable else { return }
+        let activeSession = session(for: conversationID, profile: profile)
+        activeSession.prewarm()
+    }
+
     /// Answers the latest user message of a conversation.
     /// - Parameters:
     ///   - history: the conversation INCLUDING the latest user message

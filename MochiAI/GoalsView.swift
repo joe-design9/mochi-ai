@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Goals tab: expandable goal cards with a gradient progress ring and
-/// step checkboxes — Liquid Glass cards on the plum backdrop.
+/// Goals tab: expandable goal cards with a monochrome progress ring and
+/// step checkboxes — Liquid Glass cards on the black backdrop.
 struct GoalsView: View {
     @EnvironmentObject private var store: AppStore
     @State private var expandedID: UUID?
