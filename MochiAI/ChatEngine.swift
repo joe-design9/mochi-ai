@@ -19,6 +19,8 @@ private enum ProviderResult {
 /// Typed failure for `Result` (a bare `String` cannot be a `Failure` type).
 struct EngineFailure: Error {
     let message: String
+    /// True only for `URLError.timedOut` — HTTPHelper retries those once.
+    var isTimeout: Bool = false
 }
 
 // MARK: - Public API
@@ -72,10 +74,24 @@ enum APIClient {
 private enum HTTPHelper {
     /// Performs a JSON POST and hands back (data, statusCode) or a short
     /// human-readable transport error.
+    ///
+    /// Timeout policy: the request gets 120 seconds (slow first-token
+    /// latency happens), and a TIMEOUT is retried exactly once after a
+    /// short pause with the identical request. Real API answers (any
+    /// HTTP status) and all other transport errors are never retried.
     static func postJSON(url: URL, headers: [String: String], body: [String: Any]) async -> Result<(Data, Int), EngineFailure> {
+        let result = await attempt(url: url, headers: headers, body: body)
+        if case .failure(let failure) = result, failure.isTimeout {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            return await attempt(url: url, headers: headers, body: body)
+        }
+        return result
+    }
+
+    private static func attempt(url: URL, headers: [String: String], body: [String: Any]) async -> Result<(Data, Int), EngineFailure> {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 60
+        request.timeoutInterval = 120
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         for (field, value) in headers {
             request.setValue(value, forHTTPHeaderField: field)
@@ -86,6 +102,11 @@ private enum HTTPHelper {
             let (data, response) = try await URLSession.shared.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             return .success((data, status))
+        } catch let urlError as URLError where urlError.code == .timedOut {
+            return .failure(EngineFailure(
+                message: "Verbindung fehlgeschlagen: \(urlError.localizedDescription)",
+                isTimeout: true
+            ))
         } catch {
             return .failure(EngineFailure(message: "Verbindung fehlgeschlagen: \(error.localizedDescription)"))
         }

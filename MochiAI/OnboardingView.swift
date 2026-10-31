@@ -33,6 +33,7 @@ struct OnboardingView: View {
     @State private var answers = ["", "", "", ""]
     @State private var connectProvider: APIProvider = .gemini
     @State private var keyDraft = ""
+    @FocusState private var isFieldFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -50,6 +51,15 @@ struct OnboardingView: View {
             .padding(.horizontal, 20)
             .padding(.top, 28)
             .padding(.bottom, 30)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Fertig") { isFieldFocused = false }
+                    .font(.body.weight(.semibold))
+                    .tint(Palette.accent)
+            }
         }
     }
 
@@ -101,12 +111,14 @@ struct OnboardingView: View {
                 }
 
                 TextField(question.placeholder, text: $answers[index])
+                    .focused($isFieldFocused)
                     .appField()
                     .autocorrectionDisabled()
 
                 HStack {
                     if index > 0 {
                         Button("Zurück") {
+                            isFieldFocused = false
                             withAnimation { step -= 1 }
                         }
                         .font(.subheadline.weight(.semibold))
@@ -114,6 +126,7 @@ struct OnboardingView: View {
                     }
                     Spacer()
                     Button("Weiter") {
+                        isFieldFocused = false
                         withAnimation { step += 1 }
                     }
                     .font(.headline.weight(.bold))
@@ -195,6 +208,7 @@ struct OnboardingView: View {
 
                 FieldLabel(text: "API Key")
                 SecureField("API Key einfügen", text: $keyDraft)
+                    .focused($isFieldFocused)
                     .appField()
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -207,6 +221,7 @@ struct OnboardingView: View {
                     .foregroundStyle(Palette.secondaryText)
 
                 Button("Verbinden") {
+                    isFieldFocused = false
                     store.provider = connectProvider
                     if !keyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         store.setKey(keyDraft, for: connectProvider)
@@ -217,6 +232,7 @@ struct OnboardingView: View {
                 .buttonStyle(.plain)
 
                 Button("Später") {
+                    isFieldFocused = false
                     store.provider = connectProvider
                     finish()
                 }

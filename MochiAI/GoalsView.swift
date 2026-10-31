@@ -48,6 +48,7 @@ struct GoalsView: View {
             .padding(.top, 14)
             .padding(.bottom, 24)
         }
+        .scrollDismissesKeyboard(.interactively)
         .sheet(isPresented: $showingNewGoal) {
             NewGoalSheet()
         }
@@ -136,6 +137,7 @@ struct NewGoalSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var stepsText = ""
+    @FocusState private var isFieldFocused: Bool
 
     var body: some View {
         ZStack {
@@ -145,14 +147,17 @@ struct NewGoalSheet: View {
                     SectionTitle(text: "Neues Ziel")
                     FieldLabel(text: "Ziel")
                     TextField("z. B. GTA 6 auf 100 % spielen", text: $title)
+                        .focused($isFieldFocused)
                         .appField()
                     FieldLabel(text: "Schritte (einer pro Zeile)")
                     TextField("Schritt 1\nSchritt 2\nSchritt 3", text: $stepsText, axis: .vertical)
+                        .focused($isFieldFocused)
                         .lineLimit(4...8)
                         .appField()
                     Button("Ziel speichern") {
                         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
                         guard !trimmedTitle.isEmpty else { return }
+                        isFieldFocused = false
                         var steps = stepsText
                             .split(separator: "\n")
                             .map { GoalStep(title: $0.trimmingCharacters(in: .whitespaces)) }
@@ -174,6 +179,15 @@ struct NewGoalSheet: View {
                         .buttonStyle(.plain)
                 }
                 .padding(20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Fertig") { isFieldFocused = false }
+                    .font(.body.weight(.semibold))
+                    .tint(Palette.accent)
             }
         }
     }

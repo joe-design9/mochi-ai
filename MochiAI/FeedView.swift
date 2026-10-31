@@ -19,6 +19,7 @@ struct FeedView: View {
             .padding(.top, 14)
             .padding(.bottom, 24)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: Greeting

@@ -33,7 +33,7 @@ enum APIProvider: String, CaseIterable, Identifiable {
 
     var defaultModel: String {
         switch self {
-        case .gemini: return "gemini-2.5-flash"
+        case .gemini: return "gemini-3.8-flash"
         case .openAICompatible: return "gpt-4o-mini"
         }
     }
@@ -47,7 +47,7 @@ enum APIProvider: String, CaseIterable, Identifiable {
 
     var modelPlaceholder: String {
         switch self {
-        case .gemini: return "z. B. gemini-2.5-flash"
+        case .gemini: return "z. B. gemini-3.8-flash"
         case .openAICompatible: return "z. B. gpt-4o-mini, llama-3.3-70b-versatile, openai/gpt-4o-mini"
         }
     }

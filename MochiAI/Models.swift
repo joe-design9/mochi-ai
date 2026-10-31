@@ -9,18 +9,72 @@ struct UserProfile: Codable {
     var teleport: String
 }
 
+// MARK: - App info
+
+enum AppInfo {
+    /// Shown in the library's About card; keep in sync with MARKETING_VERSION.
+    static let version = "1.1.1"
+}
+
 // MARK: - Chat
 
-struct ChatMessage: Identifiable {
-    enum Role {
+struct ChatMessage: Codable, Identifiable {
+    enum Role: String, Codable {
         case user
         case assistant
     }
 
-    let id = UUID()
+    let id: UUID
     let role: Role
     let text: String
-    let date = Date()
+    let date: Date
+
+    init(id: UUID = UUID(), role: Role, text: String, date: Date = Date()) {
+        self.id = id
+        self.role = role
+        self.text = text
+        self.date = date
+    }
+}
+
+/// One chat thread. Conversations are persisted as JSON in UserDefaults
+/// and shown in the chat's history list.
+struct Conversation: Codable, Identifiable {
+    let id: UUID
+    var createdAt: Date
+    var updatedAt: Date
+    var messages: [ChatMessage]
+
+    init(id: UUID = UUID(), createdAt: Date = Date(), updatedAt: Date = Date(), messages: [ChatMessage] = []) {
+        self.id = id
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.messages = messages
+    }
+
+    /// History-list title: the first user message, truncated.
+    var title: String {
+        guard let firstUser = messages.first(where: { $0.role == .user }) else {
+            return "Neuer Chat"
+        }
+        let text = firstUser.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return "Neuer Chat" }
+        return text.count > 40 ? String(text.prefix(40)) + "…" : text
+    }
+
+    /// History-list subtitle: "31. Okt 2026, 14:02 · 5 Nachrichten".
+    var subtitle: String {
+        let dateText = Self.dateFormatter.string(from: updatedAt)
+        let count = messages.count
+        return "\(dateText) · \(count) \(count == 1 ? "Nachricht" : "Nachrichten")"
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateFormat = "d. MMM yyyy, HH:mm"
+        return formatter
+    }()
 }
 
 // MARK: - Library

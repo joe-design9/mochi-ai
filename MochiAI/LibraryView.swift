@@ -14,6 +14,10 @@ struct LibraryView: View {
     @State private var isTesting = false
     @State private var testResult: TestResult?
 
+    /// Shared focus for all settings text fields — drives the keyboard
+    /// toolbar ("Fertig") so the keyboard can always be dismissed.
+    @FocusState private var isFieldFocused: Bool
+
     private enum TestResult {
         case success(String)
         case failure(String)
@@ -34,6 +38,15 @@ struct LibraryView: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Fertig") { isFieldFocused = false }
+                    .font(.body.weight(.semibold))
+                    .tint(Palette.accent)
+            }
         }
         .onAppear { loadDrafts() }
         .onChange(of: store.provider) { _, _ in
@@ -190,6 +203,7 @@ struct LibraryView: View {
 
                     FieldLabel(text: "API Key")
                     SecureField("Key einfügen", text: $keyDraft)
+                        .focused($isFieldFocused)
                         .appField()
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -199,6 +213,7 @@ struct LibraryView: View {
 
                     FieldLabel(text: "API-Adresse")
                     TextField(store.provider.baseURLPlaceholder, text: $baseURLDraft)
+                        .focused($isFieldFocused)
                         .appField()
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -206,6 +221,7 @@ struct LibraryView: View {
 
                     FieldLabel(text: "Modell")
                     TextField(store.provider.modelPlaceholder, text: $modelDraft)
+                        .focused($isFieldFocused)
                         .appField()
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -217,6 +233,7 @@ struct LibraryView: View {
                             store.setModel(modelDraft, for: store.provider)
                             loadDrafts()
                             savedFlash = true
+                            isFieldFocused = false
                         } label: {
                             Text(savedFlash ? "Gespeichert ✓" : "Speichern")
                                 .accentCapsule()
@@ -229,6 +246,7 @@ struct LibraryView: View {
                                 store.setKey("", for: store.provider)
                                 savedFlash = false
                                 testResult = nil
+                                isFieldFocused = false
                             } label: {
                                 Text("Key löschen")
                                     .font(.subheadline.weight(.semibold))
@@ -308,6 +326,7 @@ struct LibraryView: View {
     }
 
     private func runConnectionTest() {
+        isFieldFocused = false
         let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
             testResult = .failure("Kein API-Key eingetragen — füge oben zuerst einen Key ein.")
@@ -376,7 +395,7 @@ struct LibraryView: View {
                     Text("Muse — deine persönliche KI. Läuft lokal auf deinem iPhone, keine Cloud nötig.")
                         .font(.footnote)
                         .foregroundStyle(Palette.secondaryText)
-                    Text("Version 1.1.0")
+                    Text("Version \(AppInfo.version)")
                         .font(.caption)
                         .foregroundStyle(Palette.secondaryText)
                 }

@@ -53,6 +53,7 @@ struct IdeasView: View {
             .padding(.top, 14)
             .padding(.bottom, 24)
         }
+        .scrollDismissesKeyboard(.interactively)
         .sheet(isPresented: $showingNewIdea) {
             NewIdeaSheet()
         }
@@ -120,6 +121,7 @@ struct NewIdeaSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var text = ""
+    @FocusState private var isFieldFocused: Bool
 
     var body: some View {
         ZStack {
@@ -129,14 +131,17 @@ struct NewIdeaSheet: View {
                     SectionTitle(text: "Neue Idee")
                     FieldLabel(text: "Titel")
                     TextField("z. B. Balkon-Kino bauen", text: $title)
+                        .focused($isFieldFocused)
                         .appField()
                     FieldLabel(text: "Beschreibung")
                     TextField("Worum geht's?", text: $text, axis: .vertical)
+                        .focused($isFieldFocused)
                         .lineLimit(3...6)
                         .appField()
                     Button("Idee speichern") {
                         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
                         guard !trimmedTitle.isEmpty else { return }
+                        isFieldFocused = false
                         store.customIdeas.append(Idea(
                             id: "custom-\(UUID().uuidString)",
                             title: trimmedTitle,
@@ -156,6 +161,15 @@ struct NewIdeaSheet: View {
                         .buttonStyle(.plain)
                 }
                 .padding(20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Fertig") { isFieldFocused = false }
+                    .font(.body.weight(.semibold))
+                    .tint(Palette.accent)
             }
         }
     }
