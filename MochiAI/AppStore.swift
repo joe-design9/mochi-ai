@@ -21,9 +21,26 @@ final class AppStore: ObservableObject {
         static let customIdeas = "ideas.custom.v1"
         static let dismissedIdeas = "ideas.dismissed.v1"
         static let provider = "api.provider"
+        static let companion = "companionID"
     }
 
     @Published var selectedTab: Tab = .chat
+
+    // MARK: Companion
+
+    /// The currently selected animated companion (persisted as "companionID").
+    @Published var companion: CompanionID = .mochi {
+        didSet {
+            UserDefaults.standard.set(companion.rawValue, forKey: Keys.companion)
+        }
+    }
+
+    /// Bumped whenever a new assistant reply arrives — companions bounce.
+    @Published private(set) var companionBounceTick = 0
+
+    func bounceCompanion() {
+        companionBounceTick += 1
+    }
 
     @Published var profile: UserProfile? {
         didSet { saveProfile() }
@@ -68,6 +85,11 @@ final class AppStore: ObservableObject {
         if let raw = defaults.string(forKey: Keys.provider),
            let savedProvider = APIProvider(rawValue: raw) {
             provider = savedProvider
+        }
+
+        if let raw = defaults.string(forKey: Keys.companion),
+           let savedCompanion = CompanionID(rawValue: raw) {
+            companion = savedCompanion
         }
 
         profile = load(Keys.profile)

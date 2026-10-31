@@ -1,19 +1,15 @@
 import SwiftUI
 
-/// Feed tab: countdown, profile vibes, daily card, casino promo, idea teaser.
+/// Feed tab: greeting row with companion, countdown, profile vibes,
+/// daily card, casino promo, idea teaser — flat cards, serif titles.
 struct FeedView: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    SectionTitle(text: "Dein Feed")
-                    Text("Gebaut für dich, \(store.profile?.name ?? "Freund").")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.65))
-                }
-                countdownCard
+                greetingRow
+                CountdownCard()
                 vibesCard
                 dailyCard
                 casinoCard
@@ -21,64 +17,31 @@ struct FeedView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 120)
+            .padding(.bottom, 24)
         }
     }
 
-    // MARK: Countdown
+    // MARK: Greeting
 
-    private var countdownCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 12) {
-                cardHeader(
-                    icon: "gamecontroller.fill",
-                    title: "GTA 6 Countdown",
-                    bookmark: SavedItem(id: "feed:countdown", title: "GTA 6 Countdown",
-                                        subtitle: "Release am 19. November 2026 in Leonida", kind: "Feed")
-                )
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    let parts = countdownParts(from: context.date)
-                    HStack(spacing: 10) {
-                        countdownCell(value: parts.days, label: "Tage")
-                        countdownCell(value: parts.hours, label: "Std.")
-                        countdownCell(value: parts.minutes, label: "Min.")
-                        countdownCell(value: parts.seconds, label: "Sek.")
-                    }
-                }
-                Text("Bis Lucia und Jason Leonida übernehmen. Preload ab 12. November.")
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.65))
+    private var greetingRow: some View {
+        HStack(spacing: 12) {
+            CompanionView(character: store.companion, size: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Hallo, \(store.profile?.name ?? "Freund")")
+                    .font(.system(.title2, design: .serif).weight(.bold))
+                    .foregroundStyle(Palette.ink)
+                Text("Dein Feed — gebaut für dich.")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.secondaryText)
             }
+            Spacer()
         }
-    }
-
-    private func countdownParts(from date: Date) -> (days: Int, hours: Int, minutes: Int, seconds: Int) {
-        let diff = max(0, Int(GTA.releaseDate.timeIntervalSince(date)))
-        return (diff / 86400, (diff % 86400) / 3600, (diff % 3600) / 60, diff % 60)
-    }
-
-    private func countdownCell(value: Int, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text("\(value)")
-                .font(.system(.title2, design: .default).weight(.black))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.55))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.08))
-        )
     }
 
     // MARK: Vibes
 
     private var vibesCard: some View {
-        GlassCard {
+        Card {
             VStack(alignment: .leading, spacing: 12) {
                 cardHeader(
                     icon: "sparkles",
@@ -100,11 +63,11 @@ struct FeedView: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Palette.accentText)
+                .foregroundStyle(Palette.accent)
                 .frame(width: 20)
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(Palette.ink)
             Spacer()
         }
     }
@@ -113,7 +76,7 @@ struct FeedView: View {
 
     private var dailyCard: some View {
         let daily = DailyPool.today()
-        return GlassCard {
+        return Card {
             VStack(alignment: .leading, spacing: 10) {
                 cardHeader(
                     icon: "sun.max.fill",
@@ -122,8 +85,8 @@ struct FeedView: View {
                                         subtitle: daily.text, kind: "Feed")
                 )
                 Text(daily.text)
-                    .font(.system(.title3, design: .default).weight(.semibold))
-                    .foregroundStyle(.white)
+                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .foregroundStyle(Palette.ink)
             }
         }
     }
@@ -131,17 +94,29 @@ struct FeedView: View {
     // MARK: Casino promo
 
     private var casinoCard: some View {
-        GlassCard {
+        Card {
             VStack(alignment: .leading, spacing: 10) {
-                cardHeader(
-                    icon: "die.face.5.fill",
-                    title: "Muse Royal Casino",
-                    bookmark: SavedItem(id: "feed:casino", title: "Muse Royal Casino",
-                                        subtitle: "32 Slots warten — nur Spielgeld", kind: "Feed")
-                )
+                HStack(spacing: 8) {
+                    Image(systemName: "die.face.5.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Palette.accent)
+                    Text("Muse Royal Casino")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                    Text("APP")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.8)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Palette.accent))
+                    Spacer()
+                    BookmarkButton(item: SavedItem(id: "feed:casino", title: "Muse Royal Casino",
+                                                   subtitle: "32 Slots warten — nur Spielgeld", kind: "Feed"))
+                }
                 Text("32 Slots warten auf dich — von Book of Muse bis Leonida Nights. Nur Spielgeld, kein Echtgeld, aber mit echtem Casino-Sound.")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(Palette.secondaryText)
             }
         }
     }
@@ -150,7 +125,7 @@ struct FeedView: View {
 
     private var ideaTeaserCard: some View {
         let idea = teaserIdea
-        return GlassCard {
+        return Card {
             VStack(alignment: .leading, spacing: 10) {
                 cardHeader(
                     icon: "lightbulb.fill",
@@ -159,24 +134,20 @@ struct FeedView: View {
                                         subtitle: idea.text, kind: "Idee")
                 )
                 Text(idea.title)
-                    .font(.system(.title3, design: .default).weight(.bold))
-                    .foregroundStyle(.white)
+                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .foregroundStyle(Palette.ink)
                 Text(idea.text)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(Palette.secondaryText)
                 Button {
                     store.selectedTab = .ideas
                 } label: {
                     HStack(spacing: 6) {
                         Text("Zu den Ideen")
-                            .font(.subheadline.weight(.bold))
                         Image(systemName: "arrow.right")
                             .font(.system(size: 12, weight: .bold))
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(Capsule().fill(Color(red: 0.55, green: 0.38, blue: 0.95)))
+                    .accentCapsule()
                 }
                 .buttonStyle(.plain)
             }
@@ -196,12 +167,72 @@ struct FeedView: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Palette.accentText)
+                .foregroundStyle(Palette.accent)
             Text(title)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(Palette.ink)
             Spacer()
             BookmarkButton(item: bookmark)
         }
+    }
+}
+
+// MARK: - Countdown card (own view: the 1-second TimelineView re-renders
+// only this card, never the rest of the feed)
+
+private struct CountdownCard: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "gamecontroller.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Palette.accent)
+                    Text("GTA 6 Countdown")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                    Spacer()
+                    BookmarkButton(item: SavedItem(id: "feed:countdown", title: "GTA 6 Countdown",
+                                                   subtitle: "Release am 19. November 2026 in Leonida", kind: "Feed"))
+                }
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let parts = countdownParts(from: context.date)
+                    HStack(spacing: 10) {
+                        countdownCell(value: parts.days, label: "Tage")
+                        countdownCell(value: parts.hours, label: "Std.")
+                        countdownCell(value: parts.minutes, label: "Min.")
+                        countdownCell(value: parts.seconds, label: "Sek.")
+                    }
+                }
+                Text("Bis Lucia und Jason Leonida übernehmen. Preload ab 12. November.")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.secondaryText)
+            }
+        }
+    }
+
+    private func countdownParts(from date: Date) -> (days: Int, hours: Int, minutes: Int, seconds: Int) {
+        let diff = max(0, Int(GTA.releaseDate.timeIntervalSince(date)))
+        return (diff / 86400, (diff % 86400) / 3600, (diff % 3600) / 60, diff % 60)
+    }
+
+    private func countdownCell(value: Int, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text("\(value)")
+                .font(.system(.title2, design: .serif).weight(.bold))
+                .foregroundStyle(Palette.ink)
+                .monospacedDigit()
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Palette.secondaryText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Palette.subtleFill)
+        )
     }
 }

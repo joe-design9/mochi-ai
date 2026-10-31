@@ -1,7 +1,10 @@
 import SwiftUI
 
-/// Chat tab: glass bubbles, orb avatar, typing indicator, glass input bar.
-/// Engine: configured provider (OpenAI-compatible API) or Demo-Modus.
+/// Chat tab, modeled on the Claude/ChatGPT apps: assistant answers are
+/// plain text blocks with the companion beside them, user messages sit in
+/// a subtle neutral bubble, and the empty state greets with the large
+/// animated companion plus suggestion chips.
+/// Engine: configured provider (API) or Demo-Modus.
 struct ChatView: View {
     @EnvironmentObject private var store: AppStore
     @State private var input = ""
@@ -14,36 +17,15 @@ struct ChatView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            Divider().overlay(Palette.hairline)
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(store.messages) { message in
-                            messageRow(message)
-                                .id(message.id)
-                        }
-                        if isThinking {
-                            typingRow
-                                .id("typing-indicator")
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 6)
-                    .padding(.bottom, 10)
-                }
-                .onChange(of: store.messages.count) { _, _ in
-                    scrollToBottom(proxy)
-                }
-                .onChange(of: isThinking) { _, _ in
-                    scrollToBottom(proxy)
-                }
+            if store.messages.isEmpty && !isThinking {
+                emptyState
+            } else {
+                messageList
             }
 
             inputBar
-        }
-        .padding(.bottom, 96)
-        .onAppear {
-            store.seedGreetingIfNeeded()
         }
     }
 
@@ -51,14 +33,14 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            OrbView(size: 36)
+            CompanionView(character: store.companion, size: 34)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Muse")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-                Text(store.isConfigured ? store.provider.engineLabel : "Demo-Modus")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
+                Text(store.engineLabel)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(Palette.secondaryText)
             }
             Spacer()
             if !store.isConfigured {
@@ -71,56 +53,127 @@ struct ChatView: View {
                             .frame(width: 7, height: 7)
                         Text("Demo-Modus")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Palette.ink)
                     }
                     .padding(.horizontal, 11)
                     .padding(.vertical, 7)
-                    .glassEffect(.regular.interactive(), in: Capsule())
+                    .background(Capsule().fill(Palette.card))
+                    .overlay(Capsule().strokeBorder(Palette.hairline, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
-        .padding(.bottom, 6)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: Empty state
+
+    private var emptyState: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                CompanionView(character: store.companion, size: 110)
+                    .padding(.top, 36)
+                VStack(spacing: 8) {
+                    Text("Hallo, \(store.profile?.name ?? "Freund")")
+                        .font(.system(.largeTitle, design: .serif).weight(.bold))
+                        .foregroundStyle(Palette.ink)
+                        .multilineTextAlignment(.center)
+                    Text("Ich bin Muse — manche nennen mich auch Mochi. Erzähl mir von deinem Tag, frag mich was oder stöber durch die Tabs: Im Feed wartet der GTA-6-Countdown.")
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
+                }
+                VStack(spacing: 10) {
+                    ForEach(suggestions, id: \.self) { suggestion in
+                        Button {
+                            send(text: suggestion)
+                        } label: {
+                            Text(suggestion)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Palette.ink)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Capsule().fill(Palette.card))
+                                .overlay(Capsule().strokeBorder(Palette.hairline, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 6)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var suggestions: [String] {
+        [
+            "Wie lange noch bis GTA 6?",
+            "Gib mir eine Idee für heute",
+            "Was sind meine Ziele?",
+        ]
     }
 
     // MARK: Messages
 
+    private var messageList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 18) {
+                    ForEach(store.messages) { message in
+                        messageRow(message)
+                            .id(message.id)
+                    }
+                    if isThinking {
+                        typingRow
+                            .id("typing-indicator")
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
+            }
+            .onChange(of: store.messages.count) { _, _ in
+                scrollToBottom(proxy)
+            }
+            .onChange(of: isThinking) { _, _ in
+                scrollToBottom(proxy)
+            }
+        }
+    }
+
     private func messageRow(_ message: ChatMessage) -> some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .top, spacing: 10) {
             if message.role == .assistant {
-                OrbView(size: 28)
+                CompanionView(character: store.companion, size: 26, animated: false)
                 Text(message.text)
                     .font(.body)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                Spacer(minLength: 40)
+                    .foregroundStyle(Palette.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Spacer(minLength: 40)
+                Spacer(minLength: 48)
                 Text(message.text)
                     .font(.body)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Palette.ink)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .glassEffect(
-                        .regular.tint(Color(red: 0.60, green: 0.44, blue: 0.98).opacity(0.45)),
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Palette.subtleFill)
                     )
             }
         }
     }
 
     private var typingRow: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            OrbView(size: 28)
+        HStack(alignment: .center, spacing: 10) {
+            CompanionView(character: store.companion, size: 26, animated: false)
             TypingDots()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 13)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            Spacer(minLength: 40)
+            Spacer()
         }
     }
 
@@ -131,29 +184,39 @@ struct ChatView: View {
             TextField(
                 "",
                 text: $input,
-                prompt: Text("Nachricht an Muse …").foregroundColor(.white.opacity(0.45)),
+                prompt: Text("Nachricht an Muse …").foregroundColor(Palette.secondaryText),
                 axis: .vertical
             )
             .lineLimit(1...4)
-            .foregroundStyle(.white)
-            .tint(.white)
-            .onSubmit { send() }
+            .foregroundStyle(Palette.ink)
+            .tint(Palette.accent)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Palette.card)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Palette.hairline, lineWidth: 1)
+            )
+            .onSubmit { send(text: input) }
 
             Button {
-                send()
+                send(text: input)
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(canSend ? Palette.lavender : Color.white.opacity(0.30))
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(canSend ? Palette.accent : Palette.secondaryText.opacity(0.4)))
             }
             .buttonStyle(.plain)
             .disabled(!canSend)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .glassEffect(.regular.interactive(), in: Capsule())
         .padding(.horizontal, 16)
-        .padding(.top, 6)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     // MARK: Logic
@@ -168,8 +231,8 @@ struct ChatView: View {
         }
     }
 
-    private func send() {
-        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func send(text rawText: String) {
+        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isThinking else { return }
         input = ""
         store.messages.append(ChatMessage(role: .user, text: text))
@@ -178,6 +241,7 @@ struct ChatView: View {
         let history = store.messages
         let configured = store.isConfigured
         let config = EngineConfig(
+            provider: store.provider,
             key: store.activeKey,
             baseURL: store.activeBaseURL,
             model: store.activeModel,
@@ -198,6 +262,7 @@ struct ChatView: View {
                 reply = responder.reply(to: text)
             }
             store.messages.append(ChatMessage(role: .assistant, text: reply))
+            store.bounceCompanion()
             isThinking = false
         }
     }
@@ -212,7 +277,7 @@ struct TypingDots: View {
         HStack(spacing: 5) {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .fill(Color.white.opacity(0.85))
+                    .fill(Palette.secondaryText)
                     .frame(width: 7, height: 7)
                     .offset(y: bouncing ? -3 : 2)
                     .animation(

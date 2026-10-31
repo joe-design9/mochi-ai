@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// First-launch flow: Muse introduces itself, asks four questions one at a
-/// time (chips + free text), shows a "what I learned" summary, and ends with
-/// an optional provider-connect step that can always be skipped.
+/// First-launch flow: Muse (with the companion) introduces itself, asks four
+/// questions one at a time (chips + free text), shows a "what I learned"
+/// summary, and ends with an optional provider-connect step that can
+/// always be skipped. Warm paper design — serif title, flat cards.
 struct OnboardingView: View {
     @EnvironmentObject private var store: AppStore
 
@@ -56,13 +57,13 @@ struct OnboardingView: View {
 
     private var header: some View {
         VStack(spacing: 12) {
-            OrbView(size: 92)
+            CompanionView(character: store.companion, size: 96)
             Text("Hi, ich bin Muse")
-                .font(.system(.largeTitle, design: .default).weight(.black))
-                .foregroundStyle(.white)
+                .font(.system(.largeTitle, design: .serif).weight(.bold))
+                .foregroundStyle(Palette.ink)
             Text("Deine persönliche KI — ich laufe direkt hier auf deinem iPhone. Lass uns kurz einrichten, wer du bist. Dauert keine Minute.")
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(Palette.secondaryText)
                 .multilineTextAlignment(.center)
         }
     }
@@ -70,34 +71,28 @@ struct OnboardingView: View {
     // MARK: Question step
 
     private func questionCard(_ question: Question, index: Int) -> some View {
-        GlassCard {
+        Card {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Frage \(index + 1) von \(questions.count)")
-                    .font(.caption.weight(.bold))
-                    .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.55))
+                FieldLabel(text: "Frage \(index + 1) von \(questions.count)")
                 Text(question.title)
-                    .font(.system(.title3, design: .default).weight(.bold))
-                    .foregroundStyle(.white)
+                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .foregroundStyle(Palette.ink)
 
                 if !question.chips.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
                         ForEach(question.chips, id: \.self) { chip in
+                            let selected = answers[index] == chip
                             Button {
                                 answers[index] = chip
                             } label: {
                                 Text(chip)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(answers[index] == chip ? .white : .white.opacity(0.8))
+                                    .foregroundStyle(selected ? .white : Palette.ink)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
                                     .frame(maxWidth: .infinity)
                                     .background(
-                                        Capsule().fill(
-                                            answers[index] == chip
-                                                ? Color(red: 0.55, green: 0.38, blue: 0.95).opacity(0.75)
-                                                : Color.white.opacity(0.10)
-                                        )
+                                        Capsule().fill(selected ? Palette.accent : Palette.subtleFill)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -106,7 +101,7 @@ struct OnboardingView: View {
                 }
 
                 TextField(question.placeholder, text: $answers[index])
-                    .glassField()
+                    .appField()
                     .autocorrectionDisabled()
 
                 HStack {
@@ -115,7 +110,7 @@ struct OnboardingView: View {
                             withAnimation { step -= 1 }
                         }
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(Palette.secondaryText)
                     }
                     Spacer()
                     Button("Weiter") {
@@ -125,7 +120,7 @@ struct OnboardingView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
-                    .background(Capsule().fill(Color(red: 0.55, green: 0.38, blue: 0.95)))
+                    .background(Capsule().fill(Palette.accent))
                     .buttonStyle(.plain)
                     .disabled(answers[index].trimmingCharacters(in: .whitespaces).isEmpty)
                     .opacity(answers[index].trimmingCharacters(in: .whitespaces).isEmpty ? 0.45 : 1)
@@ -137,26 +132,22 @@ struct OnboardingView: View {
     // MARK: Summary step
 
     private var summaryCard: some View {
-        GlassCard {
+        Card {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Das habe ich über dich gelernt:")
-                    .font(.system(.title3, design: .default).weight(.bold))
-                    .foregroundStyle(.white)
+                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .foregroundStyle(Palette.ink)
                 summaryRow(icon: "person.fill", label: "Name", value: answers[0])
                 summaryRow(icon: "moon.stars.fill", label: "Entspannung", value: answers[1])
                 summaryRow(icon: "heart.fill", label: "Hobby", value: answers[2])
                 summaryRow(icon: "airplane", label: "Teleport-Ziel", value: answers[3])
                 Text("Stimmt so? Dann geht's los — ein optionaler Schritt wartet noch.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Palette.secondaryText)
                 Button("Los geht's") {
                     withAnimation { step = questions.count + 1 }
                 }
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Capsule().fill(Color(red: 0.55, green: 0.38, blue: 0.95)))
+                .accentBlock()
                 .buttonStyle(.plain)
             }
         }
@@ -166,15 +157,15 @@ struct OnboardingView: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Palette.accentText)
+                .foregroundStyle(Palette.accent)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(label)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(Palette.secondaryText)
                 Text(value)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Palette.ink)
             }
             Spacer()
         }
@@ -183,37 +174,37 @@ struct OnboardingView: View {
     // MARK: Optional connect step
 
     private var connectCard: some View {
-        GlassCard {
+        Card {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Großes Modell verbinden")
-                    .font(.system(.title3, design: .default).weight(.bold))
-                    .foregroundStyle(.white)
+                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .foregroundStyle(Palette.ink)
                 Text("Optional: Mit einem eigenen API-Key rede ich mit einem großen Modell statt im Demo-Modus. Ohne Key ist auch alles gut — dann bleibe ich lokal auf deinem iPhone.")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(Palette.secondaryText)
 
-                FieldLabel(text: "ANBIETER")
+                FieldLabel(text: "Anbieter")
                 Picker("Anbieter", selection: $connectProvider) {
                     ForEach(APIProvider.allCases) { provider in
                         Text(provider.displayName).tag(provider)
                     }
                 }
                 .pickerStyle(.menu)
-                .tint(Palette.accentText)
+                .tint(Palette.accent)
                 .labelsHidden()
 
-                FieldLabel(text: "API KEY")
+                FieldLabel(text: "API Key")
                 SecureField("API Key einfügen", text: $keyDraft)
-                    .glassField()
+                    .appField()
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 Text(connectProvider.keyHint)
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(Palette.secondaryText)
 
-                Text("Adresse und Modell kannst du später jederzeit in der Bibliothek unter „Einstellungen“ anpassen.")
+                Text("Adresse und Modell kannst du später jederzeit in der Bibliothek unter „Einstellungen“ anpassen — dort gibt es auch einen „Verbindung testen“-Knopf.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Palette.secondaryText)
 
                 Button("Verbinden") {
                     store.provider = connectProvider
@@ -222,11 +213,7 @@ struct OnboardingView: View {
                     }
                     finish()
                 }
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Capsule().fill(Color(red: 0.55, green: 0.38, blue: 0.95)))
+                .accentBlock()
                 .buttonStyle(.plain)
 
                 Button("Später") {
@@ -234,7 +221,7 @@ struct OnboardingView: View {
                     finish()
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(Palette.secondaryText)
                 .frame(maxWidth: .infinity)
                 .buttonStyle(.plain)
             }
@@ -248,7 +235,8 @@ struct OnboardingView: View {
             hobby: answers[2].trimmingCharacters(in: .whitespaces),
             teleport: answers[3].trimmingCharacters(in: .whitespaces)
         )
-        store.seedGreetingIfNeeded()
+        // No seeded greeting message anymore: the chat's empty state greets
+        // with the large companion and suggestion chips instead.
         store.selectedTab = .chat
     }
 }

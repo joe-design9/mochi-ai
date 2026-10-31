@@ -107,7 +107,7 @@ struct LocalResponder {
         }
 
         if contains(text, ["wie geht", "geht es dir", "gehts dir"]) {
-            return "Mir geht's super — ich sitze hier in violettem Liquid Glass und warte auf dich. Wie geht's dir, \(name)?"
+            return "Mir geht's super — ich sitze hier gemütlich in deiner App und warte auf dich. Wie geht's dir, \(name)?"
         }
 
         if hasWord(text, ["hallo", "hey", "hi", "moin", "servus", "hoi"]) || text.contains("guten tag") {

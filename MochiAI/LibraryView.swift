@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Library tab: saved items, profile, and settings — provider picker with
-/// per-provider key (Keychain), API address and model fields.
+/// Library tab: companion picker, saved items, profile, and settings —
+/// provider picker with per-provider key (Keychain), API address and model
+/// fields, plus a "Verbindung testen" self-diagnosis button.
 struct LibraryView: View {
     @EnvironmentObject private var store: AppStore
 
@@ -10,11 +11,20 @@ struct LibraryView: View {
     @State private var modelDraft = ""
     @State private var savedFlash = false
 
+    @State private var isTesting = false
+    @State private var testResult: TestResult?
+
+    private enum TestResult {
+        case success(String)
+        case failure(String)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                SectionTitle(text: "Bibliothek")
+                ScreenTitle(text: "Bibliothek")
 
+                companionSection
                 savedSection
                 profileSection
                 settingsSection
@@ -23,11 +33,61 @@ struct LibraryView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 120)
+            .padding(.bottom, 24)
         }
         .onAppear { loadDrafts() }
         .onChange(of: store.provider) { _, _ in
             loadDrafts()
+            testResult = nil
+        }
+    }
+
+    // MARK: Begleiter
+
+    private var companionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            FieldLabel(text: "Begleiter")
+            Card {
+                HStack(spacing: 8) {
+                    ForEach(CompanionID.allCases) { companion in
+                        let selected = store.companion == companion
+                        Button {
+                            store.companion = companion
+                        } label: {
+                            VStack(spacing: 6) {
+                                ZStack(alignment: .topTrailing) {
+                                    CompanionView(character: companion, size: 54)
+                                    if selected {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 16))
+                                            .foregroundStyle(Palette.accent)
+                                            .background(Circle().fill(Palette.card))
+                                            .offset(x: 3, y: -3)
+                                    }
+                                }
+                                Text(companion.displayName)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(selected ? Palette.ink : Palette.secondaryText)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(selected ? Palette.subtleFill : Color.clear)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(selected ? Palette.accent : Palette.hairline,
+                                                  lineWidth: selected ? 1.5 : 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            Text("Dein Begleiter sitzt im Chat neben meinen Antworten — und hüpft, wenn ich antworte.")
+                .font(.footnote)
+                .foregroundStyle(Palette.secondaryText)
         }
     }
 
@@ -35,29 +95,29 @@ struct LibraryView: View {
 
     private var savedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Gespeichert")
+            FieldLabel(text: "Gespeichert")
             if store.savedItems.isEmpty {
-                GlassCard {
+                Card {
                     Text("Noch nichts gespeichert. Tippe im Feed oder bei den Ideen auf ein Lesezeichen — dann landet es hier.")
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(Palette.secondaryText)
                 }
             } else {
                 ForEach(store.savedItems) { item in
-                    GlassCard(cornerRadius: 20) {
+                    Card(cornerRadius: 16) {
                         HStack(alignment: .top, spacing: 10) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.kind.uppercased())
-                                    .font(.caption2.weight(.black))
+                                    .font(.caption2.weight(.bold))
                                     .tracking(1.0)
-                                    .foregroundStyle(Palette.accentText)
+                                    .foregroundStyle(Palette.accent)
                                 Text(item.title)
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(.white)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Palette.ink)
                                 if !item.subtitle.isEmpty {
                                     Text(item.subtitle)
                                         .font(.footnote)
-                                        .foregroundStyle(.white.opacity(0.7))
+                                        .foregroundStyle(Palette.secondaryText)
                                 }
                             }
                             Spacer()
@@ -66,7 +126,7 @@ struct LibraryView: View {
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 18))
-                                    .foregroundStyle(.white.opacity(0.5))
+                                    .foregroundStyle(Palette.secondaryText)
                             }
                             .buttonStyle(.plain)
                         }
@@ -80,8 +140,8 @@ struct LibraryView: View {
 
     private var profileSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Dein Profil")
-            GlassCard {
+            FieldLabel(text: "Dein Profil")
+            Card {
                 VStack(alignment: .leading, spacing: 10) {
                     if let profile = store.profile {
                         profileRow(label: "Name", value: profile.name)
@@ -91,7 +151,7 @@ struct LibraryView: View {
                     } else {
                         Text("Noch kein Profil angelegt.")
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundStyle(Palette.secondaryText)
                     }
                 }
             }
@@ -101,12 +161,12 @@ struct LibraryView: View {
     private func profileRow(label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text(label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.55))
+                .font(.subheadline)
+                .foregroundStyle(Palette.secondaryText)
                 .frame(width: 110, alignment: .leading)
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Palette.ink)
             Spacer()
         }
     }
@@ -115,38 +175,38 @@ struct LibraryView: View {
 
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Einstellungen")
-            GlassCard {
+            FieldLabel(text: "Einstellungen")
+            Card {
                 VStack(alignment: .leading, spacing: 14) {
-                    FieldLabel(text: "ANBIETER")
+                    FieldLabel(text: "Anbieter")
                     Picker("Anbieter", selection: providerBinding) {
                         ForEach(APIProvider.allCases) { provider in
                             Text(provider.displayName).tag(provider)
                         }
                     }
                     .pickerStyle(.menu)
-                    .tint(Palette.accentText)
+                    .tint(Palette.accent)
                     .labelsHidden()
 
-                    FieldLabel(text: "API KEY")
+                    FieldLabel(text: "API Key")
                     SecureField("Key einfügen", text: $keyDraft)
-                        .glassField()
+                        .appField()
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Text(store.provider.keyHint)
                         .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(Palette.secondaryText)
 
-                    FieldLabel(text: "API-ADRESSE")
+                    FieldLabel(text: "API-Adresse")
                     TextField(store.provider.baseURLPlaceholder, text: $baseURLDraft)
-                        .glassField()
+                        .appField()
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
 
-                    FieldLabel(text: "MODELL")
+                    FieldLabel(text: "Modell")
                     TextField(store.provider.modelPlaceholder, text: $modelDraft)
-                        .glassField()
+                        .appField()
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
@@ -159,11 +219,7 @@ struct LibraryView: View {
                             savedFlash = true
                         } label: {
                             Text(savedFlash ? "Gespeichert ✓" : "Speichern")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 10)
-                                .background(Capsule().fill(Color(red: 0.55, green: 0.38, blue: 0.95)))
+                                .accentCapsule()
                         }
                         .buttonStyle(.plain)
 
@@ -172,27 +228,111 @@ struct LibraryView: View {
                                 keyDraft = ""
                                 store.setKey("", for: store.provider)
                                 savedFlash = false
+                                testResult = nil
                             } label: {
                                 Text("Key löschen")
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Color(red: 1.0, green: 0.55, blue: 0.55))
+                                    .foregroundStyle(Palette.danger)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 10)
-                                    .background(Capsule().fill(Color.white.opacity(0.10)))
+                                    .background(Capsule().fill(Palette.subtleFill))
                             }
                             .buttonStyle(.plain)
                         }
                         Spacer()
                     }
 
-                    Divider().overlay(Color.white.opacity(0.15))
+                    Divider().overlay(Palette.hairline)
+
+                    // Connection self-test — uses the values currently in
+                    // the fields, so mistakes show up before saving.
+                    Button {
+                        runConnectionTest()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isTesting {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "waveform.path.ecg")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            Text(isTesting ? "Teste Verbindung …" : "Verbindung testen")
+                        }
+                        .hairlineCapsule()
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isTesting)
+
+                    if let testResult {
+                        testResultView(testResult)
+                    }
+
+                    Divider().overlay(Palette.hairline)
                     Text("Aktive Engine: \(store.engineCaption)")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(Palette.ink)
                     Text("Jeder Anbieter behält seinen eigenen Key — Wechseln löscht nichts.")
                         .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(Palette.secondaryText)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func testResultView(_ result: TestResult) -> some View {
+        switch result {
+        case .success(let reply):
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Palette.success)
+                Text("Verbindung OK — der Anbieter antwortet: „\(reply)“")
+                    .font(.footnote)
+                    .foregroundStyle(Palette.ink)
+            }
+        case .failure(let message):
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Palette.danger)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Das meldet der Anbieter:")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(Palette.secondaryText)
+                }
+            }
+        }
+    }
+
+    private func runConnectionTest() {
+        let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            testResult = .failure("Kein API-Key eingetragen — füge oben zuerst einen Key ein.")
+            return
+        }
+        var base = baseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.isEmpty { base = store.provider.defaultBaseURL }
+        var model = modelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if model.isEmpty { model = store.provider.defaultModel }
+
+        let config = EngineConfig(
+            provider: store.provider,
+            key: key,
+            baseURL: base,
+            model: model,
+            profile: store.profile
+        )
+        isTesting = true
+        testResult = nil
+        Task {
+            let result = await APIClient.testConnection(config: config)
+            isTesting = false
+            switch result {
+            case .success(let reply): testResult = .success(reply)
+            case .failure(let message): testResult = .failure(message)
             }
         }
     }
@@ -207,38 +347,38 @@ struct LibraryView: View {
     // MARK: Reset & About
 
     private var resetSection: some View {
-        GlassCard {
+        Card {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Neu starten")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Palette.ink)
                 Text("Setzt dein Profil zurück und startet das Onboarding neu. Gespeicherte Inhalte, Ideen und Ziele bleiben erhalten.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(Palette.secondaryText)
                 Button("Onboarding zurücksetzen") {
                     store.resetOnboarding()
                 }
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(Color(red: 1.0, green: 0.60, blue: 0.60))
+                .foregroundStyle(Palette.danger)
                 .buttonStyle(.plain)
             }
         }
     }
 
     private var aboutSection: some View {
-        GlassCard {
+        Card {
             HStack(spacing: 14) {
-                OrbView(size: 44)
+                CompanionView(character: store.companion, size: 46)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Muse")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
                     Text("Muse — deine persönliche KI. Läuft lokal auf deinem iPhone, keine Cloud nötig.")
                         .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.7))
-                    Text("Version 1.0.0")
+                        .foregroundStyle(Palette.secondaryText)
+                    Text("Version 1.1.0")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(Palette.secondaryText)
                 }
                 Spacer()
             }
@@ -246,12 +386,6 @@ struct LibraryView: View {
     }
 
     // MARK: Helpers
-
-    private func sectionHeader(_ text: String) -> some View {
-        Text(text)
-            .font(.system(.title3, design: .default).weight(.black))
-            .foregroundStyle(.white)
-    }
 
     private func loadDrafts() {
         keyDraft = store.key(for: store.provider)

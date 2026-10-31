@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Goals tab: expandable goal cards with a progress ring and step checkboxes.
+/// Goals tab: expandable goal cards with an accent progress ring and
+/// step checkboxes — flat cards in the warm paper design.
 struct GoalsView: View {
     @EnvironmentObject private var store: AppStore
     @State private var expandedID: UUID?
@@ -11,10 +12,10 @@ struct GoalsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 4) {
-                        SectionTitle(text: "Ziele")
+                        ScreenTitle(text: "Ziele")
                         Text("Kleine Schritte, sichtbarer Fortschritt.")
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.65))
+                            .foregroundStyle(Palette.secondaryText)
                     }
                     Spacer()
                     Button {
@@ -24,21 +25,17 @@ struct GoalsView: View {
                             Image(systemName: "plus")
                                 .font(.system(size: 12, weight: .bold))
                             Text("Neues Ziel")
-                                .font(.subheadline.weight(.bold))
                         }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .glassEffect(.regular.interactive(), in: Capsule())
+                        .accentCapsule()
                     }
                     .buttonStyle(.plain)
                 }
 
                 if store.goals.isEmpty {
-                    GlassCard {
+                    Card {
                         Text("Noch keine Ziele — leg oben dein erstes an.")
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundStyle(Palette.secondaryText)
                             .frame(maxWidth: .infinity)
                     }
                 } else {
@@ -49,7 +46,7 @@ struct GoalsView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 120)
+            .padding(.bottom, 24)
         }
         .sheet(isPresented: $showingNewGoal) {
             NewGoalSheet()
@@ -58,7 +55,7 @@ struct GoalsView: View {
 
     private func goalCard(_ goal: GoalItem) -> some View {
         let expanded = expandedID == goal.id
-        return GlassCard {
+        return Card {
             VStack(alignment: .leading, spacing: 12) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -69,17 +66,17 @@ struct GoalsView: View {
                         ProgressRing(progress: goal.progress)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(goal.title)
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(.white)
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(Palette.ink)
                                 .multilineTextAlignment(.leading)
                             Text("\(goal.doneCount) von \(goal.steps.count) Schritten geschafft")
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(Palette.secondaryText)
                         }
                         Spacer()
                         Image(systemName: expanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(Palette.secondaryText)
                     }
                 }
                 .buttonStyle(.plain)
@@ -93,10 +90,10 @@ struct GoalsView: View {
                                 HStack(spacing: 10) {
                                     Image(systemName: step.done ? "checkmark.square.fill" : "square")
                                         .font(.system(size: 19))
-                                        .foregroundStyle(step.done ? Color(red: 0.45, green: 0.90, blue: 0.55) : .white.opacity(0.6))
+                                        .foregroundStyle(step.done ? Palette.accent : Palette.secondaryText)
                                     Text(step.title)
                                         .font(.subheadline)
-                                        .foregroundStyle(step.done ? .white.opacity(0.5) : .white)
+                                        .foregroundStyle(step.done ? Palette.secondaryText : Palette.ink)
                                         .strikethrough(step.done)
                                     Spacer()
                                 }
@@ -113,7 +110,7 @@ struct GoalsView: View {
                                 Text("Ziel löschen")
                             }
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.55, blue: 0.55))
+                            .foregroundStyle(Palette.danger)
                         }
                         .buttonStyle(.plain)
                         .padding(.top, 4)
@@ -142,19 +139,17 @@ struct NewGoalSheet: View {
 
     var body: some View {
         ZStack {
-            AppBackground()
+            Palette.paper.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Neues Ziel")
-                        .font(.system(.title2, design: .default).weight(.black))
-                        .foregroundStyle(.white)
-                    FieldLabel(text: "ZIEL")
+                    SectionTitle(text: "Neues Ziel")
+                    FieldLabel(text: "Ziel")
                     TextField("z. B. GTA 6 auf 100 % spielen", text: $title)
-                        .glassField()
-                    FieldLabel(text: "SCHRITTE (EINER PRO ZEILE)")
+                        .appField()
+                    FieldLabel(text: "Schritte (einer pro Zeile)")
                     TextField("Schritt 1\nSchritt 2\nSchritt 3", text: $stepsText, axis: .vertical)
                         .lineLimit(4...8)
-                        .glassField()
+                        .appField()
                     Button("Ziel speichern") {
                         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
                         guard !trimmedTitle.isEmpty else { return }
@@ -168,23 +163,18 @@ struct NewGoalSheet: View {
                         store.goals.append(GoalItem(title: trimmedTitle, steps: steps))
                         dismiss()
                     }
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Capsule().fill(Color(red: 0.55, green: 0.38, blue: 0.95)))
+                    .accentBlock()
                     .buttonStyle(.plain)
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                     .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.45 : 1)
                     Button("Abbrechen") { dismiss() }
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(Palette.secondaryText)
                         .frame(maxWidth: .infinity)
                         .buttonStyle(.plain)
                 }
                 .padding(20)
             }
         }
-        .preferredColorScheme(.dark)
     }
 }

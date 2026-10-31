@@ -1,7 +1,8 @@
 import Foundation
 
-/// Selectable API providers. Gemini and the generic provider both speak the
-/// OpenAI-compatible chat-completions protocol (Bearer key, /chat/completions).
+/// Selectable API providers. Gemini uses Google's native generateContent
+/// REST API; the generic provider speaks the OpenAI-compatible
+/// chat-completions protocol (Bearer key, /chat/completions).
 enum APIProvider: String, CaseIterable, Identifiable {
     case gemini
     case openAICompatible
@@ -25,7 +26,7 @@ enum APIProvider: String, CaseIterable, Identifiable {
 
     var defaultBaseURL: String {
         switch self {
-        case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai/"
+        case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .openAICompatible: return "https://api.openai.com/v1"
         }
     }
@@ -39,7 +40,7 @@ enum APIProvider: String, CaseIterable, Identifiable {
 
     var baseURLPlaceholder: String {
         switch self {
-        case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai/"
+        case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .openAICompatible: return "z. B. https://api.openai.com/v1, https://api.groq.com/openai/v1, https://openrouter.ai/api/v1"
         }
     }
