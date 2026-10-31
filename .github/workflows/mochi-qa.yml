@@ -1,0 +1,58 @@
+name: QA Screenshot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  screenshot:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build QA configuration (Simulator)
+        run: |
+          xcodebuild \
+            -project MochiAI.xcodeproj \
+            -scheme MochiAI \
+            -configuration QA \
+            -sdk iphonesimulator \
+            -derivedDataPath build-qa \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Boot a simulator
+        run: |
+          RUNTIME=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable and (.name | startswith("iOS")))] | last | .identifier')
+          UDID=$(xcrun simctl list devices -j | jq -r --arg rt "$RUNTIME" '(.devices[$rt] // []) | map(select(.isAvailable and (.name | startswith("iPhone")))) | last | .udid // empty')
+          if [ -z "$UDID" ]; then
+            DEVTYPE=$(xcrun simctl list devicetypes -j | jq -r '[.devicetypes[] | select(.name | test("^iPhone (1[6-9]|2[0-9])"))] | sort_by(.name) | last | .identifier')
+            echo "Creating device from type: $DEVTYPE on $RUNTIME"
+            UDID=$(xcrun simctl create QA-iPhone "$DEVTYPE" "$RUNTIME")
+          fi
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Install and capture
+        run: |
+          mkdir -p shots
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false || true
+          APP=$(find build-qa/Build/Products -name "MochiAI.app" -type d | head -1)
+          echo "App: $APP"
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" dev.joe.mochiai -UITestMode -QASendFlow
+          sleep 4
+          xcrun simctl io "$UDID" screenshot shots/chat.png
+          sleep 6
+          xcrun simctl io "$UDID" screenshot shots/sendflow1.png
+          sleep 5
+          xcrun simctl io "$UDID" screenshot shots/sendflow2.png
+          ls -la shots
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: mochi-qa-screenshot
+          path: shots/
