@@ -228,7 +228,73 @@ final class AppStore: ObservableObject {
         }
 
         hasKey = !key(for: provider).isEmpty
+
+        #if QA
+        seedUITestDataIfRequested()
+        #endif
     }
+
+    // MARK: QA screenshot mode (never in release builds)
+
+    #if QA
+    /// `-UITestMode` launch argument: skip onboarding with a local
+    /// test profile and open the Chat tab on a pre-seeded conversation
+    /// whose LAST message is a LONG assistant reply, so the parent can
+    /// screenshot-verify the v2.2.2 reply anchoring in the Simulator
+    /// (reply start at the top of the message area). Double-guarded:
+    /// the QA compilation condition exists only in the QA build
+    /// configuration, and even there nothing happens without the
+    /// launch argument. Purely local — no network, no API key — and
+    /// the seed reuses the regular profile/message models.
+    private func seedUITestDataIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-UITestMode")
+        else { return }
+        profile = UserProfile(name: "QA Tester", relax: "", hobby: "", teleport: "")
+        selectedTab = .chat
+        let now = Date()
+        messages = [
+            ChatMessage(
+                role: .user,
+                text: "Hey Muse, kurze Frage: Was soll ich heute Abend kochen?",
+                date: now.addingTimeInterval(-3600)
+            ),
+            ChatMessage(
+                role: .assistant,
+                text: "Wie wäre es mit Pasta? Geht schnell, macht satt — und fast alles dafür hast du schon zu Hause.",
+                date: now.addingTimeInterval(-3540)
+            ),
+            ChatMessage(
+                role: .user,
+                text: "Gute Idee. Und jetzt erklär mir bitte ausführlich, wie ich am besten für meine Prüfung nächste Woche lerne.",
+                date: now.addingTimeInterval(-600)
+            ),
+            ChatMessage(
+                role: .assistant,
+                text: Self.uiTestLongReply,
+                date: now.addingTimeInterval(-540)
+            ),
+        ]
+    }
+
+    /// The long multi-paragraph sample reply for the QA screenshot
+    /// check — clearly a test text, long enough to be several times
+    /// taller than the message area when rendered.
+    private static let uiTestLongReply = """
+        TESTTEXT — lange Beispielantwort, nur für den Screenshot-Check der Scroll-Verankerung. Wenn du das hier lesen kannst, ohne zu scrollen, und diese erste Zeile steht oben im Nachrichtenbereich, funktioniert die Verankerung.
+
+        Also, zum Lernen für deine Prüfung: Das Wichtigste ist, dass du nicht alles auf den letzten Abend schiebst. Verteile den Stoff auf die Tage, die dir bleiben, und wiederhole jeden Block mindestens zweimal — einmal aktiv mit eigenen Worten und einmal, indem du dir selbst Fragen dazu stellst.
+
+        Schritt eins: Verschaff dir einen Überblick. Schreib alle Themen auf ein Blatt und markiere ehrlich, was schon sitzt und was noch wackelt. Die wackligen Themen bekommen die meiste Zeit, nicht die, die du sowieso schon kannst.
+
+        Schritt zwei: Lerne in Blöcken von etwa 25 Minuten und mach danach fünf Minuten Pause. In den Blöcken gilt: Handy weg, nur ein Thema, und am Ende jedes Blocks schreibst du aus dem Kopf auf, was hängen geblieben ist. Was du nicht aufschreiben kannst, hast du noch nicht verstanden.
+
+        Schritt drei: Übe mit Altklausuren oder Beispielfragen, wenn du welche hast. Das zeigt dir nicht nur Wissenslücken, sondern auch das Format der Fragen — und es nimmt die Überraschung aus der eigentlichen Prüfung.
+
+        Am Tag vor der Prüfung heißt es dann: nur noch leicht wiederholen, nichts Neues mehr anfangen, früh ins Bett. Schlaf ist kein Luxus, sondern der Moment, in dem dein Gehirn den Stoff sortiert und festigt.
+
+        Und falls du zwischendurch festhängst oder ein Thema einfach nicht in den Kopf will: Schreib mir einfach, wir gehen es Stück für Stück zusammen durch. Das war die letzte Zeile dieses Testtexts — sie darf im Screenshot NICHT sichtbar sein, sonst ist die Verankerung falsch herum.
+        """
+    #endif
 
     // MARK: Profile
 
