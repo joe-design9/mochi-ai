@@ -16,6 +16,11 @@ private enum ProviderResult {
     case failure(String)
 }
 
+/// Typed failure for `Result` (a bare `String` cannot be a `Failure` type).
+struct EngineFailure: Error {
+    let message: String
+}
+
 // MARK: - Public API
 
 enum APIClient {
@@ -47,7 +52,7 @@ enum APIClient {
     /// Minimal self-diagnosis request ("Antworte mit: OK") with the given
     /// settings. Returns the provider's reply on success, or the provider's
     /// error message (verbatim) / a short transport note on failure.
-    static func testConnection(config: EngineConfig) async -> Result<String, String> {
+    static func testConnection(config: EngineConfig) async -> Result<String, EngineFailure> {
         let result: ProviderResult
         switch config.provider {
         case .gemini:
@@ -57,7 +62,7 @@ enum APIClient {
         }
         switch result {
         case .success(let text): return .success(text)
-        case .failure(let message): return .failure(message)
+        case .failure(let message): return .failure(EngineFailure(message: message))
         }
     }
 }
@@ -67,7 +72,7 @@ enum APIClient {
 private enum HTTPHelper {
     /// Performs a JSON POST and hands back (data, statusCode) or a short
     /// human-readable transport error.
-    static func postJSON(url: URL, headers: [String: String], body: [String: Any]) async -> Result<(Data, Int), String> {
+    static func postJSON(url: URL, headers: [String: String], body: [String: Any]) async -> Result<(Data, Int), EngineFailure> {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 60
@@ -82,7 +87,7 @@ private enum HTTPHelper {
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             return .success((data, status))
         } catch {
-            return .failure("Verbindung fehlgeschlagen: \(error.localizedDescription)")
+            return .failure(EngineFailure(message: "Verbindung fehlgeschlagen: \(error.localizedDescription)"))
         }
     }
 
@@ -155,8 +160,8 @@ private enum GeminiAPI {
             body: body
         )
         switch outcome {
-        case .failure(let message):
-            return .failure(message)
+        case .failure(let failure):
+            return .failure(failure.message)
         case .success(let (data, status)):
             guard status == 200 else {
                 return .failure(HTTPHelper.errorMessage(from: data, status: status))
@@ -164,8 +169,9 @@ private enum GeminiAPI {
             guard let decoded = try? JSONDecoder().decode(GeminiResponse.self, from: data) else {
                 return .failure("Unerwartetes Antwortformat von Google.")
             }
-            let text = (decoded.candidates?.first?.content?.parts ?? [])
-                .compactMap(\.text)
+            let parts: [GeminiResponse.Candidate.Content.Part] = decoded.candidates?.first?.content?.parts ?? []
+            let text = parts
+                .compactMap { $0.text }
                 .joined()
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
@@ -255,8 +261,8 @@ private enum OpenAIAPI {
             body: body
         )
         switch outcome {
-        case .failure(let message):
-            return .failure(message)
+        case .failure(let failure):
+            return .failure(failure.message)
         case .success(let (data, status)):
             guard status == 200 else {
                 return .failure(HTTPHelper.errorMessage(from: data, status: status))
@@ -264,8 +270,8 @@ private enum OpenAIAPI {
             guard let decoded = try? JSONDecoder().decode(ChatCompletionResponse.self, from: data) else {
                 return .failure("Unerwartetes Antwortformat vom Anbieter.")
             }
-            let text = decoded.choices.first?.message.content?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let rawContent: String = decoded.choices.first?.message.content ?? ""
+            let text = rawContent.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
                 return .failure("Der Anbieter hat eine leere Antwort geschickt — versuch es einfach nochmal.")
             }

@@ -332,7 +332,7 @@ struct LibraryView: View {
             isTesting = false
             switch result {
             case .success(let reply): testResult = .success(reply)
-            case .failure(let message): testResult = .failure(message)
+            case .failure(let failure): testResult = .failure(failure.message)
             }
         }
     }
