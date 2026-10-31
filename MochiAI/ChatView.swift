@@ -78,6 +78,11 @@ struct ChatView: View {
     /// while the chat was covered.
     @State private var replyIDAtCallStart: UUID?
 
+#if QA
+    /// QA send-flow script phase (see `runQASendFlowIfRequested`).
+    @State private var qaPhase = "idle"
+#endif
+
     /// Purely visual: the send arrow is full-strength with text present.
     /// Sending is ALWAYS possible — never gated on a running request.
     private var hasText: Bool {
@@ -97,6 +102,10 @@ struct ChatView: View {
             inputBar
         }
         .dismissKeyboardOnTap()
+#if QA
+        .overlay(alignment: .topTrailing) { qaStatusBadge }
+        .task { await runQASendFlowIfRequested() }
+#endif
         .onAppear {
             // Apple-KI mode: warm the on-device session up in the
             // background so the first answer starts faster.
@@ -617,7 +626,68 @@ struct ChatView: View {
         input = ""
         Haptics.light()
         store.sendUserMessage(text)
+        // Keep the keyboard UP after sending (user bug report
+        // 2026-10-31: "die Tastatur muss man immer neu aufmachen,
+        // wenn man ne Nachricht abschickt"). The keyboard guard no
+        // longer resigns on control taps, but re-assert focus on
+        // the next runloop passes anyway so no gesture plumbing can
+        // steal it: the user keeps typing message after message.
+        DispatchQueue.main.async { inputFocused = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            inputFocused = true
+        }
     }
+
+#if QA
+    // MARK: QA send-flow script (QA configuration ONLY — never in
+    // a release IPA; see QA.md). Launched with `-QASendFlow`, this
+    // drives the REAL send path twice and reports its phase plus the
+    // live focus state in a badge, so the CI screenshots prove:
+    // message 1 sent → demo reply arrived → keyboard STILL focused
+    // (focus=1) → message 2 sent the same way. The regression it
+    // guards: the 2026-10-31 keyboard bug, where every send killed
+    // the keyboard.
+    private var qaStatusBadge: some View {
+        Text("QA \(qaPhase) focus=\(inputFocused ? 1 : 0) msgs=\(store.messages.count)")
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.red)
+            .padding(.top, 52)
+            .padding(.trailing, 8)
+            .allowsHitTesting(false)
+    }
+
+    private func runQASendFlowIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("-QASendFlow")
+        else { return }
+        func wait(_ seconds: Double) async {
+            try? await Task.sleep(
+                nanoseconds: UInt64(seconds * 1_000_000_000))
+        }
+        qaPhase = "wait"
+        await wait(5.0)
+        qaPhase = "focus"
+        inputFocused = true
+        await wait(0.8)
+        qaPhase = "type1"
+        input = "QA-Testnachricht eins"
+        await wait(1.0)
+        qaPhase = "send1"
+        sendCurrentInput()
+        await wait(2.0)
+        qaPhase = "after1"
+        await wait(1.2)
+        qaPhase = "type2"
+        input = "QA-Testnachricht zwei"
+        await wait(1.0)
+        qaPhase = "send2"
+        sendCurrentInput()
+        await wait(2.0)
+        qaPhase = "after2"
+    }
+#endif
 }
 
 // MARK: - Chat history sheet

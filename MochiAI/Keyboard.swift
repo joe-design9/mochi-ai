@@ -44,6 +44,14 @@ final class KeyboardTapGuard: NSObject, UIGestureRecognizerDelegate {
     /// completed tap — so this is always up to date when read.)
     private(set) var lastInputTouchAt: Date = .distantPast
 
+    /// When the most recent tap landed on a control (button etc.).
+    /// Control taps are ACTIONS — most importantly the chat's send
+    /// button — never dismiss taps. Bug found 2026-10-31: the guard
+    /// used to resign the first responder on EVERY non-input tap,
+    /// so each tap on "send" killed the keyboard and the user had
+    /// to reopen it for every single message.
+    private(set) var lastControlTouchAt: Date = .distantPast
+
     /// Installs the recognizer on the current key window (idempotent —
     /// a new window, e.g. after scene changes, gets its own recognizer).
     func installIfNeeded() {
@@ -61,6 +69,14 @@ final class KeyboardTapGuard: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc private func handleTap() {
+        // Belt and braces: even if a tap reaches this handler, never
+        // resign right after an input or control touch (the delegate
+        // normally filters those out before recognition).
+        let now = Date()
+        if now.timeIntervalSince(lastInputTouchAt) < 0.4
+            || now.timeIntervalSince(lastControlTouchAt) < 0.4 {
+            return
+        }
         KeyboardDismisser.hide()
     }
 
@@ -75,6 +91,14 @@ final class KeyboardTapGuard: NSObject, UIGestureRecognizerDelegate {
         while let current = view {
             if current is UITextField || current is UITextView {
                 lastInputTouchAt = Date()
+                return false
+            }
+            if current is UIControl {
+                // Buttons and other controls perform an action with
+                // the tap (send, call, tab …) — the keyboard must
+                // survive it. Dismissal is only for taps on dead
+                // surface: message background, empty areas.
+                lastControlTouchAt = Date()
                 return false
             }
             view = current.superview
@@ -113,7 +137,9 @@ struct DismissKeyboardOnTap: ViewModifier {
                     // A tap within the last blink of an eye that landed
                     // on a text input was meant to focus it — the guard
                     // recorded it; don't resign the fresh first responder.
-                    if Date().timeIntervalSince(KeyboardTapGuard.shared.lastInputTouchAt) > 0.4 {
+                    let guardState = KeyboardTapGuard.shared
+                    if Date().timeIntervalSince(guardState.lastInputTouchAt) > 0.4
+                        && Date().timeIntervalSince(guardState.lastControlTouchAt) > 0.4 {
                         KeyboardDismisser.hide()
                     }
                 }
