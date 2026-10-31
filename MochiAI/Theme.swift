@@ -76,36 +76,67 @@ enum Palette {
 }
 
 // MARK: - Backdrop (static Vice-style glows over the plum base — cheap:
-// two/three radial gradients, no blur stacks, no animation)
+// three radial gradients, no blur stacks, no animation)
+//
+// LAYOUT SAFETY (v2.0.1 fix): the backdrop must NEVER take part in the
+// layout of anything around it. The v2.0.0 version put 520–640pt circles
+// in a plain ZStack — the stack sized itself to its largest child, the
+// root view inflated well beyond the screen, and all sibling content
+// (header, greeting, input bar) laid out against that inflated width
+// and clipped on both edges. Now the backdrop lives in a GeometryReader
+// sized exactly to the screen: glow circles are placed with .position()
+// inside that fixed frame and clipped, so their size can never
+// propagate into any parent layout.
 
 struct AppBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let dark = colorScheme == .dark
-        ZStack {
-            Palette.paper
-            Circle()
-                .fill(RadialGradient(
-                    colors: [Palette.accentPink.opacity(dark ? 0.42 : 0.30), .clear],
-                    center: .center, startRadius: 0, endRadius: 300
-                ))
-                .frame(width: 600, height: 600)
-                .offset(x: -150, y: -330)
-            Circle()
-                .fill(RadialGradient(
-                    colors: [Palette.accentViolet.opacity(dark ? 0.40 : 0.28), .clear],
-                    center: .center, startRadius: 0, endRadius: 320
-                ))
-                .frame(width: 640, height: 640)
-                .offset(x: 190, y: 40)
-            Circle()
-                .fill(RadialGradient(
-                    colors: [Palette.accentPink.opacity(dark ? 0.20 : 0.14), .clear],
-                    center: .center, startRadius: 0, endRadius: 260
-                ))
-                .frame(width: 520, height: 520)
-                .offset(x: -80, y: 430)
+        GeometryReader { proxy in
+            let size = proxy.size
+            let dark = colorScheme == .dark
+            // One generous glow diameter, derived from the screen only.
+            let glow = max(size.width, size.height) * 1.25
+            ZStack {
+                Palette.paper
+                // Pink glow, top-left — the main color wash.
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [
+                            Palette.accentPink.opacity(dark ? 0.58 : 0.38),
+                            Palette.accentViolet.opacity(dark ? 0.20 : 0.12),
+                            .clear,
+                        ],
+                        center: .center, startRadius: 0, endRadius: glow / 2
+                    ))
+                    .frame(width: glow, height: glow)
+                    .position(x: size.width * 0.08, y: size.height * 0.02)
+                // Violet glow, right edge, upper-middle.
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [
+                            Palette.accentViolet.opacity(dark ? 0.52 : 0.34),
+                            Palette.accentPink.opacity(dark ? 0.16 : 0.10),
+                            .clear,
+                        ],
+                        center: .center, startRadius: 0, endRadius: glow / 2
+                    ))
+                    .frame(width: glow, height: glow)
+                    .position(x: size.width * 1.02, y: size.height * 0.44)
+                // Pink glow, bottom — keeps the lower half warm too.
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [
+                            Palette.accentPink.opacity(dark ? 0.34 : 0.22),
+                            .clear,
+                        ],
+                        center: .center, startRadius: 0, endRadius: glow / 2
+                    ))
+                    .frame(width: glow, height: glow)
+                    .position(x: size.width * 0.22, y: size.height * 1.04)
+            }
+            .frame(width: size.width, height: size.height)
+            .clipped()
         }
         .ignoresSafeArea()
     }
@@ -243,21 +274,28 @@ struct CompanionGlow: View {
     var animated: Bool = true
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(RadialGradient(
-                    colors: [
-                        Palette.accentPink.opacity(0.55),
-                        Palette.accentViolet.opacity(0.26),
-                        .clear,
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: size * 0.95
-                ))
-                .frame(width: size * 1.9, height: size * 1.9)
-            CompanionView(character: character, size: size, animated: animated)
-        }
-        .frame(width: size, height: size)
+        // The halo is background content: background views never change
+        // the size of the view they back, so the oversized glow circle
+        // (1.9×) is purely decorative and cannot inflate any layout.
+        // The gradient reaches .clear exactly at the halo's edge, so
+        // nothing visible extends past its fixed frame. (v2.0.1: this
+        // was a ZStack child — same layout-safety rule as AppBackdrop.)
+        CompanionView(character: character, size: size, animated: animated)
+            .frame(width: size, height: size)
+            .background {
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [
+                            Palette.accentPink.opacity(0.55),
+                            Palette.accentViolet.opacity(0.26),
+                            .clear,
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size * 0.95
+                    ))
+                    .frame(width: size * 1.9, height: size * 1.9)
+                    .allowsHitTesting(false)
+            }
     }
 }

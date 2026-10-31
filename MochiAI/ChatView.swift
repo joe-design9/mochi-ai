@@ -106,7 +106,7 @@ struct ChatView: View {
                         .font(.subheadline)
                         .foregroundStyle(Palette.secondaryText)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity)
                 }
                 VStack(spacing: 10) {
                     ForEach(suggestions, id: \.self) { suggestion in
@@ -253,7 +253,7 @@ struct ChatView: View {
             .regular.tint(Palette.glassTint),
             in: RoundedRectangle(cornerRadius: 28, style: .continuous)
         )
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 8)
     }
