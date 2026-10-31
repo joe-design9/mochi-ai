@@ -10,10 +10,21 @@ import Foundation
 /// immediately. Server-side transcriptions of both sides are collected
 /// per turn so the controller can write the call into the chat log.
 ///
+/// Playback smoothness (v2.2.1): the server delivers its audio in many
+/// small, irregularly timed parts. Scheduling each part directly onto
+/// the player starved it between parts — the call stuttered. Incoming
+/// PCM now lands in a jitter buffer first: playback of a turn only
+/// starts once ~0.4 s is buffered, and the player is fed consolidated
+/// ~0.3 s buffers chained through its completion handler, so the
+/// queue stays ahead of the playhead for the whole turn.
+///
 /// Threading: all state lives on the main queue (socket callbacks hop
-/// there); the audio tap only touches the lock-protected gate and the
-/// socket box. JSON is built/parsed with JSONSerialization and typed
-/// locals — no fragile Decodable chains.
+/// there). The audio tap only checks the lock-protected gate and
+/// copies its buffer; conversion + base64 + socket send run on a
+/// dedicated serial uplink queue — nothing heavy on the realtime
+/// thread, and no lock is ever held during a network send. JSON is
+/// built/parsed with JSONSerialization and typed locals — no fragile
+/// Decodable chains.
 final class GeminiLiveEngine: ObservableObject {
     @Published private(set) var isConnected = false
     @Published private(set) var isModelSpeaking = false
@@ -48,7 +59,25 @@ final class GeminiLiveEngine: ObservableObject {
     private let audioEngine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     private var playbackFormat: AVAudioFormat?
-    private var pendingBuffers = 0
+
+    // Jitter buffer for the model voice (main queue only). Raw PCM16
+    // 24 kHz bytes accumulate in `jitterData`; `pumpPlayback()` cuts
+    // them into consolidated buffers for the player. Playback of a
+    // turn is primed only after `primeBytes` (~0.4 s) has arrived, so
+    // network jitter cannot starve the player mid-turn.
+    private var jitterData = Data()
+    private var scheduledBuffers = 0
+    private var playbackPrimed = false
+    private var turnAudioEnded = false
+    private static let primeBytes = 19_200   // 0.40 s @ 24 kHz Int16 mono
+    private static let chunkBytes = 14_400   // 0.30 s @ 24 kHz Int16 mono
+
+    // Uplink: conversion + send run on this serial queue, never on
+    // the audio tap's realtime thread. The converter is used ONLY on
+    // this queue (AVAudioConverter is not thread-safe).
+    private let uplinkQueue = DispatchQueue(label: "de.mochi.live.uplink", qos: .userInitiated)
+    private var uplinkConverter: AVAudioConverter?
+    private var uplinkTargetFormat: AVAudioFormat?
 
     /// Lock-protected flags read by the audio tap thread.
     private final class AudioGate {
@@ -267,6 +296,7 @@ final class GeminiLiveEngine: ObservableObject {
         }
 
         if (content["turnComplete"] as? Bool) == true {
+            finishAudioTurn()
             let userText = pendingUserTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
             let assistantText = pendingAssistantTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
             pendingUserTranscript = ""
@@ -333,15 +363,74 @@ final class GeminiLiveEngine: ObservableObject {
         }
     }
 
-    // MARK: Audio out (model voice, PCM16 24 kHz)
+    // MARK: Audio out (model voice, PCM16 24 kHz, jitter-buffered)
 
+    /// One raw audio part from the server. Parts are small and arrive
+    /// at network pace — they are NEVER scheduled directly; they only
+    /// feed the jitter buffer, and `pumpPlayback()` decides when the
+    /// player gets its next consolidated buffer.
     private func playAudioChunk(_ data: Data) {
-        guard let format = playbackFormat, data.count >= 2 else { return }
+        guard playbackFormat != nil, data.count >= 2 else { return }
+        jitterData.append(data)
+        pumpPlayback()
+    }
+
+    /// The server closed the current turn: whatever is still buffered
+    /// (less than a full chunk) is flushed to the player as the final
+    /// buffer, and once the queue has drained the next turn primes
+    /// from scratch — so a fresh turn gets the full jitter cushion
+    /// again instead of starting dry.
+    private func finishAudioTurn() {
+        turnAudioEnded = true
+        pumpPlayback()
+        if jitterData.isEmpty, scheduledBuffers == 0 {
+            // A turn with no audio at all must not leak its state
+            // into the next turn.
+            turnAudioEnded = false
+            playbackPrimed = false
+            isModelSpeaking = false
+        }
+    }
+
+    /// Feeds the player from the jitter buffer (main queue only).
+    /// - Before priming: waits until ~0.4 s is buffered (or the turn
+    ///   already ended — a very short answer plays with what it has).
+    /// - While primed: cuts ~0.3 s buffers as long as enough data is
+    ///   there; at turn end schedules the remainder as one last
+    ///   buffer. Buffer completions re-enter here, which chains the
+    ///   scheduling and detects the drained queue.
+    private func pumpPlayback() {
+        if !playbackPrimed {
+            let hasCushion = jitterData.count >= Self.primeBytes
+            let shortTurn = turnAudioEnded && !jitterData.isEmpty
+            guard hasCushion || shortTurn else { return }
+            playbackPrimed = true
+            isModelSpeaking = true
+        }
+        while jitterData.count >= Self.chunkBytes {
+            let chunk = jitterData.prefix(Self.chunkBytes)
+            jitterData.removeFirst(Self.chunkBytes)
+            schedulePCM(Data(chunk))
+        }
+        if turnAudioEnded, !jitterData.isEmpty {
+            let rest = jitterData
+            jitterData.removeAll()
+            schedulePCM(rest)
+        }
+    }
+
+    /// Builds ONE AVAudioPCMBuffer (24 kHz Int16 mono — the format the
+    /// player was connected with, so the system mixer resamples to
+    /// the hardware rate exactly once) and schedules it. The frame
+    /// count is integer-exact: odd trailing bytes are dropped.
+    private func schedulePCM(_ data: Data) {
+        guard let format = playbackFormat else { return }
         let frameCount = data.count / 2
-        guard let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(frameCount)
-        ) else { return }
+        guard frameCount > 0,
+              let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(frameCount)
+              ) else { return }
         buffer.frameLength = AVAudioFrameCount(frameCount)
         if let channel = buffer.int16ChannelData?[0] {
             data.withUnsafeBytes { raw in
@@ -350,27 +439,46 @@ final class GeminiLiveEngine: ObservableObject {
                 }
             }
         }
-        pendingBuffers += 1
-        isModelSpeaking = true
+        scheduledBuffers += 1
         playerNode.scheduleBuffer(buffer, at: nil, options: []) { [weak self] in
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.pendingBuffers = max(0, self.pendingBuffers - 1)
-                if self.pendingBuffers == 0 {
+                self.scheduledBuffers = max(0, self.scheduledBuffers - 1)
+                if self.scheduledBuffers == 0, self.jitterData.isEmpty {
+                    // Queue fully drained — after a real underrun
+                    // (mid-turn network stall) AND at a clean turn
+                    // end alike, the next audio primes from scratch
+                    // instead of starting dry and stuttering again.
+                    self.turnAudioEnded = false
+                    self.playbackPrimed = false
                     self.isModelSpeaking = false
+                } else {
+                    self.pumpPlayback()
                 }
             }
         }
     }
 
-    /// Barge-in: drop everything queued so the model stops NOW.
+    /// Barge-in: drop everything buffered and queued so the model
+    /// stops NOW; the next turn primes again from an empty buffer.
     private func flushPlayback() {
+        jitterData.removeAll()
+        scheduledBuffers = 0
+        playbackPrimed = false
+        turnAudioEnded = false
         playerNode.stop()
-        pendingBuffers = 0
         isModelSpeaking = false
         if audioEngine.isRunning {
             playerNode.play()
         }
+    }
+
+    /// Full playback reset (stop/teardown paths).
+    private func resetPlaybackState() {
+        jitterData.removeAll()
+        scheduledBuffers = 0
+        playbackPrimed = false
+        turnAudioEnded = false
     }
 
     // MARK: Audio graph (mic in + model out)
@@ -387,7 +495,10 @@ final class GeminiLiveEngine: ObservableObject {
         if !engine.attachedNodes.contains(playerNode) {
             engine.attach(playerNode)
         }
-        if let playbackFormat {
+        // Connect once — on a reconnect the existing connection (same
+        // 24 kHz format) is still in place and must not be re-made.
+        if let playbackFormat,
+           engine.outputConnectionPoints(for: playerNode, outputBus: 0).isEmpty {
             engine.connect(playerNode, to: engine.mainMixerNode, format: playbackFormat)
         }
 
@@ -401,14 +512,22 @@ final class GeminiLiveEngine: ObservableObject {
         ), let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
             return
         }
+        uplinkConverter = converter
+        uplinkTargetFormat = targetFormat
 
         gate.setOpen(true)
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-            // Audio thread: only the gate, the converter and the
-            // socket send are touched here.
-            guard let self, self.gate.shouldStream else { return }
-            self.convertAndSend(buffer, converter: converter, targetFormat: targetFormat)
+            // Realtime thread: check the gate and copy the buffer —
+            // NOTHING else. The tap's buffer is only valid for the
+            // duration of this call, so the copy is the one piece of
+            // work that must happen here; conversion, base64 and the
+            // socket send all run on the serial uplink queue.
+            guard let self, self.gate.shouldStream,
+                  let copy = Self.copyPCMBuffer(buffer) else { return }
+            self.uplinkQueue.async { [weak self] in
+                self?.convertAndSend(copy)
+            }
         }
 
         do {
@@ -426,14 +545,37 @@ final class GeminiLiveEngine: ObservableObject {
         }
         audioEngine.inputNode.removeTap(onBus: 0)
         playerNode.stop()
-        pendingBuffers = 0
+        resetPlaybackState()
+    }
+
+    /// Deep-copies a tap buffer so it can outlive the tap callback.
+    /// Plain memcpy per channel over the buffer lists — the copy has
+    /// the identical format and frame length.
+    private static func copyPCMBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard buffer.frameLength > 0,
+              let copy = AVAudioPCMBuffer(
+                pcmFormat: buffer.format,
+                frameCapacity: buffer.frameLength
+              ) else { return nil }
+        copy.frameLength = buffer.frameLength
+        let source = UnsafeAudioBufferListPointer(buffer.audioBufferList)
+        let target = UnsafeMutableAudioBufferListPointer(copy.mutableAudioBufferList)
+        for index in 0..<min(source.count, target.count) {
+            target[index].mDataByteSize = source[index].mDataByteSize
+            if let from = source[index].mData, let to = target[index].mData {
+                memcpy(to, from, Int(source[index].mDataByteSize))
+            }
+        }
+        return copy
     }
 
     /// Converts one mic buffer to PCM16 16 kHz mono and streams it as
-    /// a `realtimeInput` audio frame (base64).
-    private func convertAndSend(_ buffer: AVAudioPCMBuffer,
-                                converter: AVAudioConverter,
-                                targetFormat: AVAudioFormat) {
+    /// a `realtimeInput` audio frame (base64). Runs ONLY on the uplink
+    /// queue — the converter and the socket send never touch the
+    /// realtime audio thread, and no lock is held while sending.
+    private func convertAndSend(_ buffer: AVAudioPCMBuffer) {
+        guard let converter = uplinkConverter,
+              let targetFormat = uplinkTargetFormat else { return }
         let ratio = targetFormat.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
         guard let out = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
