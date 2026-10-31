@@ -38,12 +38,17 @@ jobs:
       - name: Install and capture
         run: |
           mkdir -p shots
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false || true
           APP=$(find build-qa/Build/Products -name "MochiAI.app" -type d | head -1)
           echo "App: $APP"
           xcrun simctl install "$UDID" "$APP"
-          xcrun simctl launch "$UDID" dev.joe.mochiai -UITestMode
-          sleep 6
+          xcrun simctl launch "$UDID" dev.joe.mochiai -UITestMode -QASendFlow
+          sleep 4
           xcrun simctl io "$UDID" screenshot shots/chat.png
+          sleep 6
+          xcrun simctl io "$UDID" screenshot shots/sendflow1.png
+          sleep 5
+          xcrun simctl io "$UDID" screenshot shots/sendflow2.png
           ls -la shots
 
       - name: Upload screenshot
