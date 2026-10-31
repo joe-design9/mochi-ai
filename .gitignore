@@ -1,0 +1,9 @@
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+build/
+DerivedData/
+Payload/
+MochiAI.ipa
+.DS_Store
+*.muse-github-snapshot-sync.json
