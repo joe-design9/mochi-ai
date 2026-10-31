@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Library tab: companion picker, saved items, profile, and settings —
-/// provider picker with per-provider key (Keychain), API address and model
-/// fields, plus a "Verbindung testen" self-diagnosis button.
+/// Library tab: companion picker, saved items, profile, and the KI
+/// settings — a mode switch (API-Key vs. Apple KI on-device) at the top;
+/// in API-Key mode the provider picker with per-provider key (Keychain),
+/// API address and model fields plus a "Verbindung testen" button; in
+/// Apple-KI mode the FoundationModels availability status.
 struct LibraryView: View {
     @EnvironmentObject private var store: AppStore
 
@@ -13,6 +15,10 @@ struct LibraryView: View {
 
     @State private var isTesting = false
     @State private var testResult: TestResult?
+
+    /// Drafts are loaded ONCE (not on every tab re-appearance — that used
+    /// to silently wipe unsaved edits and test results).
+    @State private var didLoadDrafts = false
 
     /// Shared focus for all settings text fields — drives the keyboard
     /// toolbar ("Fertig") so the keyboard can always be dismissed.
@@ -40,6 +46,7 @@ struct LibraryView: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .dismissKeyboardOnTap()
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -48,10 +55,36 @@ struct LibraryView: View {
                     .tint(Palette.accent)
             }
         }
-        .onAppear { loadDrafts() }
+        .onAppear {
+            if !didLoadDrafts {
+                loadDrafts()
+                didLoadDrafts = true
+            }
+        }
         .onChange(of: store.provider) { _, _ in
             loadDrafts()
             testResult = nil
+        }
+        // Any edit that diverges from the stored values invalidates the
+        // "Gespeichert ✓" flash and a stale test result — the UI must
+        // never claim a state that is no longer true.
+        .onChange(of: keyDraft) { _, newValue in
+            if newValue != store.key(for: store.provider) {
+                savedFlash = false
+                testResult = nil
+            }
+        }
+        .onChange(of: baseURLDraft) { _, newValue in
+            if newValue != store.baseURL(for: store.provider) {
+                savedFlash = false
+                testResult = nil
+            }
+        }
+        .onChange(of: modelDraft) { _, newValue in
+            if newValue != store.model(for: store.provider) {
+                savedFlash = false
+                testResult = nil
+            }
         }
     }
 
@@ -191,6 +224,18 @@ struct LibraryView: View {
             FieldLabel(text: "Einstellungen")
             Card {
                 VStack(alignment: .leading, spacing: 14) {
+                    FieldLabel(text: "KI-Modus")
+                    Picker("KI-Modus", selection: engineModeBinding) {
+                        ForEach(EngineMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    if store.engineMode == .appleIntelligence {
+                        appleModeSection
+                    } else {
                     FieldLabel(text: "Anbieter")
                     Picker("Anbieter", selection: providerBinding) {
                         ForEach(APIProvider.allCases) { provider in
@@ -286,16 +331,53 @@ struct LibraryView: View {
                         testResultView(testResult)
                     }
 
+                    Text("Jeder Anbieter behält seinen eigenen Key — Wechseln löscht nichts.")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.secondaryText)
+                    }
+
                     Divider().overlay(Palette.hairline)
                     Text("Aktive Engine: \(store.engineCaption)")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Palette.ink)
-                    Text("Jeder Anbieter behält seinen eigenen Key — Wechseln löscht nichts.")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.secondaryText)
                 }
             }
         }
+    }
+
+    // MARK: Apple-KI mode
+
+    /// Shown instead of the provider fields in Apple-KI mode: live
+    /// availability of the on-device model plus the privacy one-liner.
+    private var appleModeSection: some View {
+        let availability = store.appleAvailability
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: availability.isAvailable
+                      ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(availability.isAvailable ? Palette.success : Palette.danger)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(availability.statusText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                    if !availability.isAvailable {
+                        Text(availability.reasonText)
+                            .font(.footnote)
+                            .foregroundStyle(Palette.secondaryText)
+                    }
+                }
+            }
+            Text("Lokal auf deinem iPhone — kein Key, keine Cloud.")
+                .font(.footnote)
+                .foregroundStyle(Palette.secondaryText)
+        }
+    }
+
+    private var engineModeBinding: Binding<EngineMode> {
+        Binding(
+            get: { store.engineMode },
+            set: { store.engineMode = $0 }
+        )
     }
 
     @ViewBuilder
@@ -387,7 +469,7 @@ struct LibraryView: View {
     private var aboutSection: some View {
         Card {
             HStack(spacing: 14) {
-                CompanionView(character: store.companion, size: 46)
+                CompanionGlow(character: store.companion, size: 46)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Muse")
                         .font(.headline.weight(.semibold))

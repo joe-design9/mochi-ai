@@ -21,6 +21,7 @@ final class AppStore: ObservableObject {
         static let customIdeas = "ideas.custom.v1"
         static let dismissedIdeas = "ideas.dismissed.v1"
         static let provider = "api.provider"
+        static let engineMode = "engine.mode.v1"
         static let companion = "companionID"
         static let conversations = "chat.conversations.v1"
         static let activeConversation = "chat.activeConversation.v1"
@@ -93,8 +94,12 @@ final class AppStore: ObservableObject {
 
     /// One queued outgoing request: the user text plus the conversation
     /// it belongs to (replies always land in their origin conversation,
-    /// even if the user switches chats while waiting).
+    /// even if the user switches chats while waiting). The `id` token
+    /// identifies the RUNNING call unambiguously: deleting a conversation
+    /// must never clear another call's slot (that would let two calls
+    /// run concurrently and race their replies).
     private struct QueuedSend {
+        let id = UUID()
         let conversationID: UUID
         let text: String
     }
@@ -127,6 +132,22 @@ final class AppStore: ObservableObject {
 
     // MARK: API configuration
 
+    /// Engine mode: cloud provider via API key, or Apple's on-device
+    /// model. Persisted; defaults to the API-key mode.
+    @Published var engineMode: EngineMode = .apiKey {
+        didSet {
+            UserDefaults.standard.set(engineMode.rawValue, forKey: Keys.engineMode)
+            configTick += 1
+        }
+    }
+
+    /// Apple's on-device engine (FoundationModels). Sessions live here
+    /// so they survive conversation switches within an app run.
+    let appleEngine = AppleIntelligenceEngine()
+
+    /// Current FoundationModels availability (read live on each access).
+    var appleAvailability: AppleAvailability { AppleAvailability.current }
+
     @Published var provider: APIProvider = .gemini {
         didSet {
             UserDefaults.standard.set(provider.rawValue, forKey: Keys.provider)
@@ -146,6 +167,11 @@ final class AppStore: ObservableObject {
         if let raw = defaults.string(forKey: Keys.provider),
            let savedProvider = APIProvider(rawValue: raw) {
             provider = savedProvider
+        }
+
+        if let raw = defaults.string(forKey: Keys.engineMode),
+           let savedMode = EngineMode(rawValue: raw) {
+            engineMode = savedMode
         }
 
         if let raw = defaults.string(forKey: Keys.companion),
@@ -216,6 +242,9 @@ final class AppStore: ObservableObject {
     func resetOnboarding() {
         profile = nil
         messages = []
+        // Persona instructions change with the profile — drop the
+        // Apple-KI sessions so they are rebuilt with fresh instructions.
+        appleEngine.dropAllSessions()
     }
 
     // MARK: Chat — conversation management
@@ -293,9 +322,15 @@ final class AppStore: ObservableObject {
     /// Removes a conversation (and any of its still-queued sends).
     /// Deleting the active one falls back to the most recent other
     /// conversation, or to a fresh draft when none is left.
+    ///
+    /// A send for this conversation that is ALREADY running is left to
+    /// finish on its own: its reply is dropped by `appendMessage`
+    /// (target gone), and its completion only clears its own queue slot
+    /// (matched by send ID, never by conversation). Clearing the slot
+    /// here instead would let a second call start concurrently.
     func deleteConversation(id: UUID) {
         sendQueue.removeAll { $0.conversationID == id }
-        if currentSend?.conversationID == id { currentSend = nil }
+        appleEngine.dropSession(conversationID: id)
         conversations.removeAll { $0.id == id }
         if id == activeConversationID {
             if let fallback = historyConversations.first {
@@ -334,9 +369,14 @@ final class AppStore: ObservableObject {
         return sendQueue.contains { $0.conversationID == conversationID }
     }
 
-    /// Typing-indicator state for the chat: shown whenever any queued
-    /// or running call exists.
-    var isActiveConversationBusy: Bool { isChatBusy }
+    /// The conversation the chat currently writes into: the active one,
+    /// or the still-unpersisted draft's ID.
+    var currentConversationID: UUID { activeConversationID ?? activeDraft.id }
+
+    /// Typing-indicator state for the chat: busy only when a queued or
+    /// running call belongs to the conversation on screen (it used to
+    /// mirror the GLOBAL queue, so other chats showed phantom typing).
+    var isActiveConversationBusy: Bool { isBusy(conversationID: currentConversationID) }
 
     private func updateChatBusy() {
         isChatBusy = currentSend != nil || !sendQueue.isEmpty
@@ -362,32 +402,48 @@ final class AppStore: ObservableObject {
         }
 
         let reply: String
-        if isConfigured, !history.isEmpty {
-            let config = EngineConfig(
-                provider: provider,
-                key: activeKey,
-                baseURL: activeBaseURL,
-                model: activeModel,
+        switch engineMode {
+        case .appleIntelligence:
+            // On-device model. The engine itself converts every failure
+            // (unavailable, context overflow, guardrails) into a clear
+            // in-chat note, so the queue always moves on.
+            reply = await appleEngine.respond(
+                conversationID: item.conversationID,
+                history: history,
+                latestText: item.text,
                 profile: profile
             )
-            reply = await APIClient.send(history: history, config: config)
-        } else {
-            let responder = LocalResponder(
-                profile: profile,
-                ideaTitles: visibleIdeas.map(\.title),
-                goalTitles: goals.map(\.title)
-            )
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            reply = responder.reply(to: item.text)
+        case .apiKey:
+            if hasKey, !history.isEmpty {
+                let config = EngineConfig(
+                    provider: provider,
+                    key: activeKey,
+                    baseURL: activeBaseURL,
+                    model: activeModel,
+                    profile: profile
+                )
+                // APIClient.send converts provider failures into an
+                // in-character error note — the queue can never jam.
+                reply = await APIClient.send(history: history, config: config)
+            } else {
+                // Demo-Modus: the fallback when neither a key nor
+                // Apple KI is usable.
+                let responder = LocalResponder(
+                    profile: profile,
+                    ideaTitles: visibleIdeas.map(\.title),
+                    goalTitles: goals.map(\.title)
+                )
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                reply = responder.reply(to: item.text)
+            }
         }
 
-        // APIClient.send converts provider failures into an in-character
-        // error note, so a failed call simply lands in the chat and the
-        // queue moves on — it can never jam.
         appendMessage(ChatMessage(role: .assistant, text: reply), to: item.conversationID)
         bounceCompanion()
 
-        if currentSend?.conversationID == item.conversationID {
+        // Only ever clear OUR OWN slot (matched by send ID): another
+        // conversation's bookkeeping must not unleash a second call.
+        if currentSend?.id == item.id {
             currentSend = nil
         }
         updateChatBusy()
@@ -485,16 +541,40 @@ final class AppStore: ObservableObject {
     var activeBaseURL: String { baseURL(for: provider) }
     var activeModel: String { model(for: provider) }
 
-    var isConfigured: Bool { hasKey }
-
-    /// Short label: "Gemini API" / "OpenAI-kompatibel" / "Demo-Modus".
-    var engineLabel: String {
-        isConfigured ? provider.engineLabel : "Demo-Modus"
+    /// True when the SELECTED mode can actually answer: API-Key mode
+    /// needs a stored key; Apple-KI mode needs the model available.
+    var isConfigured: Bool {
+        switch engineMode {
+        case .apiKey: return hasKey
+        case .appleIntelligence: return appleAvailability.isAvailable
+        }
     }
 
-    /// Settings caption: "Gemini API (eigener Key)" or "Demo-Modus (lokal)".
+    /// Short label for the chat header: the active engine, or Demo.
+    var engineLabel: String {
+        switch engineMode {
+        case .apiKey:
+            return hasKey ? provider.engineLabel : "Demo-Modus"
+        case .appleIntelligence:
+            return appleAvailability.isAvailable ? "Apple KI (lokal)" : "Apple KI nicht verfügbar"
+        }
+    }
+
+    /// Settings caption describing the active engine.
     var engineCaption: String {
-        isConfigured ? "\(provider.engineLabel) (eigener Key)" : "Demo-Modus (lokal)"
+        switch engineMode {
+        case .apiKey:
+            return hasKey ? "\(provider.engineLabel) (eigener Key)" : "Demo-Modus (lokal)"
+        case .appleIntelligence:
+            return appleAvailability.isAvailable
+                ? "Apple KI (lokal)"
+                : "Apple KI — \(appleAvailability.statusText)"
+        }
+    }
+
+    /// Header chip text when no real engine is active.
+    var fallbackChipLabel: String {
+        engineMode == .appleIntelligence ? "Apple KI aus" : "Demo-Modus"
     }
 
     // MARK: Persistence helpers

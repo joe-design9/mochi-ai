@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// Chat tab, modeled on the Claude/ChatGPT apps: assistant answers are
-/// plain text blocks with the companion beside them, user messages sit in
-/// a subtle neutral bubble, and the empty state greets with the large
-/// animated companion plus suggestion chips.
+/// Chat tab in the Muse/Mochi identity: assistant answers are plain text
+/// blocks with the companion beside them, user messages sit in an
+/// accent-tinted Liquid Glass bubble, and the empty state greets with
+/// the large glowing companion plus glass suggestion chips.
 /// Sending runs through the store's FIFO queue: the input is never
 /// disabled, messages appear instantly, calls run one at a time.
-/// Engine: configured provider (API) or Demo-Modus.
+/// Engine: API-Key mode, Apple KI (on-device), or Demo-Modus fallback.
 struct ChatView: View {
     @EnvironmentObject private var store: AppStore
     @State private var input = ""
@@ -32,6 +32,7 @@ struct ChatView: View {
 
             inputBar
         }
+        .dismissKeyboardOnTap()
         .sheet(isPresented: $showingHistory) {
             ChatHistorySheet()
         }
@@ -41,7 +42,7 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            CompanionView(character: store.companion, size: 34)
+            CompanionGlow(character: store.companion, size: 34)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Muse")
                     .font(.headline.weight(.semibold))
@@ -59,14 +60,16 @@ struct ChatView: View {
                         Circle()
                             .fill(Color.orange)
                             .frame(width: 7, height: 7)
-                        Text("Demo-Modus")
+                        Text(store.fallbackChipLabel)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Palette.ink)
                     }
                     .padding(.horizontal, 11)
                     .padding(.vertical, 7)
-                    .background(Capsule().fill(Palette.card))
-                    .overlay(Capsule().strokeBorder(Palette.hairline, lineWidth: 1))
+                    .glassEffect(
+                        .regular.tint(Palette.glassTint).interactive(),
+                        in: Capsule()
+                    )
                 }
                 .buttonStyle(.plain)
             }
@@ -92,11 +95,11 @@ struct ChatView: View {
     private var emptyState: some View {
         ScrollView {
             VStack(spacing: 18) {
-                CompanionView(character: store.companion, size: 110)
+                CompanionGlow(character: store.companion, size: 110)
                     .padding(.top, 36)
                 VStack(spacing: 8) {
                     Text("Hallo, \(store.profile?.name ?? "Freund")")
-                        .font(.system(.largeTitle, design: .serif).weight(.bold))
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold))
                         .foregroundStyle(Palette.ink)
                         .multilineTextAlignment(.center)
                     Text("Ich bin Muse — manche nennen mich auch Mochi. Erzähl mir von deinem Tag, frag mich was oder stöber durch die Tabs: Im Feed wartet der GTA-6-Countdown.")
@@ -115,8 +118,10 @@ struct ChatView: View {
                                 .foregroundStyle(Palette.ink)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
-                                .background(Capsule().fill(Palette.card))
-                                .overlay(Capsule().strokeBorder(Palette.hairline, lineWidth: 1))
+                                .glassEffect(
+                                    .regular.tint(Palette.glassTint).interactive(),
+                                    in: Capsule()
+                                )
                         }
                         .buttonStyle(.plain)
                     }
@@ -182,9 +187,9 @@ struct ChatView: View {
                     .foregroundStyle(Palette.ink)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Palette.subtleFill)
+                    .glassEffect(
+                        .regular.tint(Palette.userBubbleTint),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                     )
             }
         }
@@ -216,7 +221,7 @@ struct ChatView: View {
             .padding(.vertical, 11)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Palette.card)
+                    .fill(Palette.fieldFill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -231,15 +236,26 @@ struct ChatView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 36, height: 36)
-                    .background(Circle().fill(hasText ? Palette.accent : Palette.secondaryText.opacity(0.4)))
+                    .background(
+                        Circle().fill(
+                            hasText
+                                ? AnyShapeStyle(Palette.accentGradient)
+                                : AnyShapeStyle(Palette.secondaryText.opacity(0.4))
+                        )
+                    )
             }
             .buttonStyle(.plain)
             // Deliberately never disabled: back-to-back messages queue up
             // in the store and are answered one after another.
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(10)
+        .glassEffect(
+            .regular.tint(Palette.glassTint),
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+        )
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 8)
     }
 
     // MARK: Logic
@@ -276,7 +292,7 @@ struct ChatHistorySheet: View {
 
     var body: some View {
         ZStack {
-            Palette.paper.ignoresSafeArea()
+            AppBackdrop()
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: 12) {
                     SectionTitle(text: "Chatverlauf")
@@ -293,6 +309,21 @@ struct ChatHistorySheet: View {
                         .accentCapsule()
                     }
                     .buttonStyle(.plain)
+                    // Explicit close (swipe-down works too — nobody gets trapped).
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Palette.ink)
+                            .frame(width: 32, height: 32)
+                            .glassEffect(
+                                .regular.tint(Palette.glassTint).interactive(),
+                                in: Circle()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Schließen")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -326,6 +357,7 @@ struct ChatHistorySheet: View {
                 }
             }
         }
+        .dismissKeyboardOnTap()
     }
 
     private func conversationRow(_ conversation: Conversation) -> some View {

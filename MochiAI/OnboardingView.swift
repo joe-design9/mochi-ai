@@ -3,7 +3,9 @@ import SwiftUI
 /// First-launch flow: Muse (with the companion) introduces itself, asks four
 /// questions one at a time (chips + free text), shows a "what I learned"
 /// summary, and ends with an optional provider-connect step that can
-/// always be skipped. Warm paper design — serif title, flat cards.
+/// always be skipped. Liquid Glass cards on the plum backdrop, rounded
+/// titles, glowing companion. Every step works with the keyboard up:
+/// tap anywhere outside the field to put it away.
 struct OnboardingView: View {
     @EnvironmentObject private var store: AppStore
 
@@ -53,6 +55,7 @@ struct OnboardingView: View {
             .padding(.bottom, 30)
         }
         .scrollDismissesKeyboard(.interactively)
+        .dismissKeyboardOnTap()
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -67,9 +70,9 @@ struct OnboardingView: View {
 
     private var header: some View {
         VStack(spacing: 12) {
-            CompanionView(character: store.companion, size: 96)
+            CompanionGlow(character: store.companion, size: 96)
             Text("Hi, ich bin Muse")
-                .font(.system(.largeTitle, design: .serif).weight(.bold))
+                .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(Palette.ink)
             Text("Deine persönliche KI — ich laufe direkt hier auf deinem iPhone. Lass uns kurz einrichten, wer du bist. Dauert keine Minute.")
                 .font(.subheadline)
@@ -85,7 +88,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 14) {
                 FieldLabel(text: "Frage \(index + 1) von \(questions.count)")
                 Text(question.title)
-                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.ink)
 
                 if !question.chips.isEmpty {
@@ -114,6 +117,12 @@ struct OnboardingView: View {
                     .focused($isFieldFocused)
                     .appField()
                     .autocorrectionDisabled()
+                    .onSubmit {
+                        // Return key = "Weiter" when the answer is filled.
+                        guard !answers[index].trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        isFieldFocused = false
+                        withAnimation { step += 1 }
+                    }
 
                 HStack {
                     if index > 0 {
@@ -148,7 +157,7 @@ struct OnboardingView: View {
         Card {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Das habe ich über dich gelernt:")
-                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.ink)
                 summaryRow(icon: "person.fill", label: "Name", value: answers[0])
                 summaryRow(icon: "moon.stars.fill", label: "Entspannung", value: answers[1])
@@ -190,7 +199,7 @@ struct OnboardingView: View {
         Card {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Großes Modell verbinden")
-                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.ink)
                 Text("Optional: Mit einem eigenen API-Key rede ich mit einem großen Modell statt im Demo-Modus. Ohne Key ist auch alles gut — dann bleibe ich lokal auf deinem iPhone.")
                     .font(.subheadline)

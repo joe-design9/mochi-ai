@@ -1,14 +1,15 @@
 import SwiftUI
 
-/// App root: warm paper background, onboarding until a profile exists,
-/// otherwise the five tabs in a native TabView (standard tab bar,
-/// accent tint). Appearance follows the system (light/dark).
+/// App root: the plum-and-glow backdrop, onboarding until a profile
+/// exists, otherwise the five tabs in a native TabView (iOS 26 renders
+/// its bar in real Liquid Glass), accent-tinted. Appearance follows the
+/// system — dark is the hero, light maps to soft lilac.
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
         ZStack {
-            Palette.paper.ignoresSafeArea()
+            AppBackdrop()
 
             if store.profile == nil {
                 OnboardingView()
@@ -31,8 +32,13 @@ struct RootView: View {
                         .tag(AppStore.Tab.library)
                 }
                 .tint(Palette.accent)
+                .onChange(of: store.selectedTab) { _, _ in
+                    // Switching tabs always puts the keyboard away.
+                    KeyboardDismisser.hide()
+                }
             }
         }
+        .dismissKeyboardOnTap()
     }
 
     private var tabSelection: Binding<AppStore.Tab> {

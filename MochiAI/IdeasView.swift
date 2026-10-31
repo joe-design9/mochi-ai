@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Ideas tab: built-in + custom idea cards with save/dismiss, plus a sheet
-/// to add your own idea — flat cards in the warm paper design.
+/// to add your own idea — Liquid Glass cards on the plum backdrop.
 struct IdeasView: View {
     @EnvironmentObject private var store: AppStore
     @State private var showingNewIdea = false
@@ -54,6 +54,7 @@ struct IdeasView: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .dismissKeyboardOnTap()
         .sheet(isPresented: $showingNewIdea) {
             NewIdeaSheet()
         }
@@ -76,7 +77,7 @@ struct IdeasView: View {
                     BookmarkButton(item: savedItem)
                 }
                 Text(idea.title)
-                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.ink)
                 Text(idea.text)
                     .font(.subheadline)
@@ -125,7 +126,7 @@ struct NewIdeaSheet: View {
 
     var body: some View {
         ZStack {
-            Palette.paper.ignoresSafeArea()
+            AppBackdrop()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     SectionTitle(text: "Neue Idee")
@@ -164,6 +165,7 @@ struct NewIdeaSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()

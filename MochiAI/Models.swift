@@ -13,7 +13,7 @@ struct UserProfile: Codable {
 
 enum AppInfo {
     /// Shown in the library's About card; keep in sync with MARKETING_VERSION.
-    static let version = "1.1.1"
+    static let version = "2.0.0"
 }
 
 // MARK: - Chat

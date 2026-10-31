@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Feed tab: greeting row with companion, countdown, profile vibes,
-/// daily card, casino promo, idea teaser — flat cards, serif titles.
+/// daily card, casino promo, idea teaser — Liquid Glass cards, rounded
+/// titles, on the plum-and-glow backdrop.
 struct FeedView: View {
     @EnvironmentObject private var store: AppStore
 
@@ -20,16 +21,17 @@ struct FeedView: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .dismissKeyboardOnTap()
     }
 
     // MARK: Greeting
 
     private var greetingRow: some View {
         HStack(spacing: 12) {
-            CompanionView(character: store.companion, size: 44)
+            CompanionGlow(character: store.companion, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Hallo, \(store.profile?.name ?? "Freund")")
-                    .font(.system(.title2, design: .serif).weight(.bold))
+                    .font(.system(.title2, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.ink)
                 Text("Dein Feed — gebaut für dich.")
                     .font(.subheadline)
@@ -86,7 +88,7 @@ struct FeedView: View {
                                         subtitle: daily.text, kind: "Feed")
                 )
                 Text(daily.text)
-                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
                     .foregroundStyle(Palette.ink)
             }
         }
@@ -135,7 +137,7 @@ struct FeedView: View {
                                         subtitle: idea.text, kind: "Idee")
                 )
                 Text(idea.title)
-                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.ink)
                 Text(idea.text)
                     .font(.subheadline)
@@ -222,7 +224,7 @@ private struct CountdownCard: View {
     private func countdownCell(value: Int, label: String) -> some View {
         VStack(spacing: 2) {
             Text("\(value)")
-                .font(.system(.title2, design: .serif).weight(.bold))
+                .font(.system(.title2, design: .rounded).weight(.bold))
                 .foregroundStyle(Palette.ink)
                 .monospacedDigit()
             Text(label)

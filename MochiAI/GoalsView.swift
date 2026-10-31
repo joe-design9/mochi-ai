@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Goals tab: expandable goal cards with an accent progress ring and
-/// step checkboxes — flat cards in the warm paper design.
+/// Goals tab: expandable goal cards with a gradient progress ring and
+/// step checkboxes — Liquid Glass cards on the plum backdrop.
 struct GoalsView: View {
     @EnvironmentObject private var store: AppStore
     @State private var expandedID: UUID?
@@ -49,6 +49,7 @@ struct GoalsView: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .dismissKeyboardOnTap()
         .sheet(isPresented: $showingNewGoal) {
             NewGoalSheet()
         }
@@ -141,7 +142,7 @@ struct NewGoalSheet: View {
 
     var body: some View {
         ZStack {
-            Palette.paper.ignoresSafeArea()
+            AppBackdrop()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     SectionTitle(text: "Neues Ziel")
@@ -182,6 +183,7 @@ struct NewGoalSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        .dismissKeyboardOnTap()
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
