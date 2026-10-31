@@ -11,11 +11,15 @@ import UIKit
 /// needs speech recognition (Live transcribes on Google's side).
 enum VoicePermissions {
     static func requestMicrophone() async -> Bool {
-        await AVAudioApplication.requestRecordPermission()
+        await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                continuation.resume(returning: granted)
+            }
+        }
     }
 
     static var microphoneGranted: Bool {
-        AVAudioApplication.recordPermission == .granted
+        AVAudioSession.sharedInstance().recordPermission == .granted
     }
 
     static func requestSpeechRecognition() async -> Bool {
