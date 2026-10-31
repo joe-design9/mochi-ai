@@ -11,6 +11,7 @@ struct LibraryView: View {
     @State private var keyDraft = ""
     @State private var baseURLDraft = ""
     @State private var modelDraft = ""
+    @State private var liveModelDraft = ""
     @State private var savedFlash = false
 
     @State private var isTesting = false
@@ -82,6 +83,12 @@ struct LibraryView: View {
         }
         .onChange(of: modelDraft) { _, newValue in
             if newValue != store.model(for: store.provider) {
+                savedFlash = false
+                testResult = nil
+            }
+        }
+        .onChange(of: liveModelDraft) { _, newValue in
+            if newValue != store.liveModel() {
                 savedFlash = false
                 testResult = nil
             }
@@ -278,11 +285,26 @@ struct LibraryView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
+                    if store.provider == .gemini {
+                        FieldLabel(text: "Live-Modell")
+                        TextField("z. B. gemini-3.8-live", text: $liveModelDraft)
+                            .focused($isFieldFocused)
+                            .appField()
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Text("Wird für den Telefon-Modus verwendet (Anruf-Knopf im Chat) — das Live-Gespräch mit gesprochenen Antworten.")
+                            .font(.footnote)
+                            .foregroundStyle(Palette.secondaryText)
+                    }
+
                     HStack(spacing: 10) {
                         Button {
                             store.setKey(keyDraft, for: store.provider)
                             store.setBaseURL(baseURLDraft, for: store.provider)
                             store.setModel(modelDraft, for: store.provider)
+                            if store.provider == .gemini {
+                                store.setLiveModel(liveModelDraft)
+                            }
                             loadDrafts()
                             savedFlash = true
                             isFieldFocused = false
@@ -502,6 +524,7 @@ struct LibraryView: View {
         keyDraft = store.key(for: store.provider)
         baseURLDraft = store.baseURL(for: store.provider)
         modelDraft = store.model(for: store.provider)
+        liveModelDraft = store.liveModel()
         savedFlash = false
     }
 }

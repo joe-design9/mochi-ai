@@ -22,6 +22,7 @@ final class AppStore: ObservableObject {
         static let dismissedIdeas = "ideas.dismissed.v1"
         static let provider = "api.provider"
         static let engineMode = "engine.mode.v1"
+        static let liveModel = "api.gemini.liveModel"
         static let companion = "companionID"
         static let conversations = "chat.conversations.v1"
         static let activeConversation = "chat.activeConversation.v1"
@@ -459,6 +460,37 @@ final class AppStore: ObservableObject {
         }
         updateChatBusy()
         drainSendQueue()
+    }
+
+    // MARK: Call transcripts (voice mode)
+
+    /// Appends a finished phone-call transcript line to the active
+    /// conversation WITHOUT queueing an engine call — in Live mode the
+    /// exchange already happened on the call itself, so the chat just
+    /// keeps the log (plain messages, exactly like typed ones).
+    func appendCallTranscript(role: ChatMessage.Role, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        messages.append(ChatMessage(role: role, text: trimmed))
+    }
+
+    // MARK: Gemini Live model (call mode)
+
+    /// The Gemini Live model used for phone calls (Bibliothek setting,
+    /// defaults to `APIProvider.defaultGeminiLiveModel`).
+    func liveModel() -> String {
+        UserDefaults.standard.string(forKey: Keys.liveModel)
+            ?? APIProvider.defaultGeminiLiveModel
+    }
+
+    func setLiveModel(_ value: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == APIProvider.defaultGeminiLiveModel {
+            UserDefaults.standard.removeObject(forKey: Keys.liveModel)
+        } else {
+            UserDefaults.standard.set(trimmed, forKey: Keys.liveModel)
+        }
+        configTick += 1
     }
 
     func seedGreetingIfNeeded() {

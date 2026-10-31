@@ -62,3 +62,15 @@ enum APIProvider: String, CaseIterable, Identifiable {
         }
     }
 }
+
+extension APIProvider {
+    /// Default Gemini Live model for the phone-call mode (v2.2.0).
+    /// Used when the user hasn't customized the "Live-Modell" setting.
+    static let defaultGeminiLiveModel = "gemini-3.8-live"
+
+    /// Second-chance Live model: if the configured Live model fails the
+    /// call setup (e.g. unknown to the API), the call retries once with
+    /// this well-known native-audio model before falling back to the
+    /// speech pipeline.
+    static let fallbackGeminiLiveModel = "gemini-live-2.5-flash-native-audio"
+}

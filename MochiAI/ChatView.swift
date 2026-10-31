@@ -20,12 +20,20 @@ struct ChatView: View {
     @EnvironmentObject private var store: AppStore
     @State private var input = ""
     @State private var showingHistory = false
+    @State private var showingCall = false
     @FocusState private var inputFocused: Bool
 
     /// Tracks whether the user is scrolled to (near) the newest
-    /// message — auto-scroll on new replies only happens then, so
-    /// reading older messages is never interrupted.
+    /// message — used only for the typing indicator and for following
+    /// the user's own messages. Incoming REPLIES no longer depend on
+    /// it: they are always anchored so their start is on screen (see
+    /// the messages onChange below).
     @State private var isNearBottom = true
+
+    /// Height of the visible message area, captured from the scroll
+    /// geometry — the reply anchoring compares the estimated reply
+    /// height against it.
+    @State private var viewportHeight: CGFloat = 0
 
     /// Purely visual: the send arrow is full-strength with text present.
     /// Sending is ALWAYS possible — never gated on a running request.
@@ -53,6 +61,9 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingHistory) {
             ChatHistorySheet()
+        }
+        .fullScreenCover(isPresented: $showingCall) {
+            CallView()
         }
     }
 
@@ -196,7 +207,8 @@ struct ChatView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             // Keep track of whether the user is near the newest
-            // message; only then does the list auto-follow new content.
+            // message (typing indicator / own messages follow it) and
+            // how tall the visible area is (reply anchoring below).
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentSize.height
                     - geometry.contentOffset.y
@@ -204,14 +216,28 @@ struct ChatView: View {
             } action: { _, newValue in
                 isNearBottom = newValue
             }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.containerSize.height
+            } action: { _, newValue in
+                if abs(newValue - viewportHeight) > 1 {
+                    viewportHeight = newValue
+                }
+            }
             .onChange(of: store.messages.count) { oldCount, newCount in
                 guard newCount > oldCount, let last = store.messages.last else { return }
                 if last.role == .assistant {
-                    // A reply arrived: subtle haptic (but not for the
-                    // seeded greeting in a brand-new conversation) and
-                    // follow it only if the user is near the bottom.
-                    if oldCount > 0 { Haptics.light() }
-                    if isNearBottom { scrollToBottom(proxy) }
+                    // A REPLY arrived (v2.2.0 anchoring rule): it must
+                    // be readable WITHOUT any scrolling — position the
+                    // view so the START of the reply sits at the top of
+                    // the message area, no matter where the user had
+                    // scrolled while waiting. Short replies that fit
+                    // whole on screen keep the familiar bottom anchor.
+                    // (oldCount == 0 is the seeded greeting of a fresh
+                    // conversation — that one never yanks the view.)
+                    if oldCount > 0 {
+                        Haptics.light()
+                        anchorReply(last, with: proxy)
+                    }
                 } else {
                     // The user's own message always scrolls into view.
                     scrollToBottom(proxy)
@@ -293,24 +319,40 @@ struct ChatView: View {
             )
             .onSubmit { sendCurrentInput() }
 
-            Button {
-                sendCurrentInput()
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(hasText ? Palette.primaryText : Palette.secondaryText)
-                    .frame(width: 36, height: 36)
-                    .background(
-                        Circle().fill(
-                            hasText
-                                ? AnyShapeStyle(Palette.primaryFill)
-                                : AnyShapeStyle(Palette.subtleFill)
+            if hasText {
+                Button {
+                    sendCurrentInput()
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Palette.primaryText)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Palette.primaryFill))
+                }
+                .buttonStyle(.plain)
+                // Deliberately never disabled: back-to-back messages
+                // queue up in the store and are answered one after
+                // another.
+            } else {
+                // Empty field: the send button becomes the call button
+                // (phone glyph in a glass circle) — tap to start a real
+                // phone call with Muse (CallView).
+                Button {
+                    inputFocused = false
+                    showingCall = true
+                } label: {
+                    Image(systemName: "phone.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Palette.ink)
+                        .frame(width: 36, height: 36)
+                        .glassEffect(
+                            .regular.tint(Palette.glassTint).interactive(),
+                            in: Circle()
                         )
-                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Anrufen")
             }
-            .buttonStyle(.plain)
-            // Deliberately never disabled: back-to-back messages queue up
-            // in the store and are answered one after another.
         }
         .padding(10)
         .glassEffect(
@@ -332,6 +374,37 @@ struct ChatView: View {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }
         }
+    }
+
+    /// Anchors a freshly arrived reply so it can be read with zero
+    /// scrolling: replies short enough to fit the visible area whole
+    /// use the bottom anchor (their start is on screen anyway); longer
+    /// replies are scrolled so their FIRST line sits at the top of the
+    /// message area, and the user reads downward naturally from there.
+    private func anchorReply(_ reply: ChatMessage, with proxy: ScrollViewProxy) {
+        let fitsWhole = viewportHeight > 0
+            && estimatedReplyHeight(reply.text) <= viewportHeight - 24
+        if fitsWhole {
+            withAnimation(.easeOut(duration: 0.25)) {
+                proxy.scrollTo(reply.id, anchor: .bottom)
+            }
+        } else {
+            withAnimation(.easeOut(duration: 0.3)) {
+                proxy.scrollTo(reply.id, anchor: .top)
+            }
+        }
+    }
+
+    /// Rough height estimate for an assistant bubble (body font, ~23pt
+    /// line height, 20pt vertical padding, ~38 characters per line at
+    /// the chat's bubble width). Deliberately a touch generous: when in
+    /// doubt the top anchor wins, because the one hard rule is that the
+    /// reply's start must be visible.
+    private func estimatedReplyHeight(_ text: String) -> CGFloat {
+        let explicitBreaks = text.filter { $0 == "\n" }.count
+        let wrappedLines = Double(text.count) / 38.0
+        let lines = max(1.0, ceil(wrappedLines) + Double(explicitBreaks))
+        return CGFloat(lines) * 23 + 20
     }
 
     /// Queues the current input (the message appears instantly; the call
