@@ -25,7 +25,8 @@ enum Palette {
     static let paper = dynamic(light: 0xF4F4F6, dark: 0x000000)
     /// Elevated solid surface (fallbacks, picker checkmark backing).
     static let card = dynamic(light: 0xFFFFFF, dark: 0x131315)
-    /// Solid fill for text fields (glass or solid only — never a material).
+    /// Legacy solid field fill — text fields are real Liquid Glass
+    /// since v2.4.0 (appField); kept only as a solid fallback token.
     static let fieldFill = dynamic(light: 0xFFFFFF, dark: 0x1B1B1E)
     /// Primary text.
     static let ink = dynamic(light: 0x131315, dark: 0xF5F5F7)
@@ -145,16 +146,13 @@ struct AppBackdrop: View {
 // color — never .ultraThinMaterial or any other material fallback.
 
 extension View {
-    /// Real Liquid Glass card surface: neutral smoky regular glass plus
-    /// a 1pt highlight stroke that is bright at the top edge and fades
-    /// downward — the light-catching rim that makes glass read as glass
-    /// (a plain gradient stroke, NOT a material).
-    func glassCard(cornerRadius: CGFloat = 22) -> some View {
-        glassEffect(
-            .regular.tint(Palette.glassTint),
-            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        )
-        .overlay(
+    /// The light-catching rim shared by every glass surface: a 1pt
+    /// highlight stroke that is bright at the top edge and fades
+    /// downward. This rim is what makes glass read as glass over the
+    /// pure-black canvas — a tinted shape WITHOUT it reads as a flat
+    /// fill (v2.3.0 device feedback: header, user bubbles).
+    func glassRim(cornerRadius: CGFloat) -> some View {
+        overlay(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
@@ -167,21 +165,58 @@ extension View {
         )
     }
 
-    /// Clean text-field styling: solid elevated fill, hairline border.
+    /// Real Liquid Glass card surface: neutral smoky regular glass
+    /// plus the shared rim (a plain gradient stroke, NOT a material).
+    func glassCard(cornerRadius: CGFloat = 22) -> some View {
+        glassEffect(
+            .regular.tint(Palette.glassTint),
+            in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        )
+        .glassRim(cornerRadius: cornerRadius)
+    }
+
+    /// Backs the view with a small real-Liquid-Glass capsule incl.
+    /// rim — chips and cells (v2.4.0: replaces the flat subtleFill
+    /// capsules, which read as solid plastic in dark mode).
+    func glassCapsuleBackground() -> some View {
+        background {
+            Capsule()
+                .glassEffect(
+                    .regular.tint(Palette.glassTint),
+                    in: Capsule()
+                )
+        }
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Palette.glassHighlightTop, Palette.glassHighlightBottom],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        )
+    }
+
+    /// Text-field styling: a real Liquid Glass surface (v2.4.0 —
+    /// the old solid fieldFill read as a flat dark-gray block in
+    /// dark mode, exactly what the user flagged on the composer;
+    /// fields are glass everywhere now, never a solid fill).
     func appField(cornerRadius: CGFloat = 12) -> some View {
         self
             .foregroundStyle(Palette.ink)
             .tint(Palette.accent)
             .padding(.horizontal, 12)
             .padding(.vertical, 11)
-            .background(
+            .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Palette.fieldFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Palette.hairline, lineWidth: 1)
-            )
+                    .glassEffect(
+                        .regular.tint(Palette.glassTint),
+                        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    )
+            }
+            .glassRim(cornerRadius: cornerRadius)
     }
 
     /// Solid monochrome capsule label (primary small buttons): white

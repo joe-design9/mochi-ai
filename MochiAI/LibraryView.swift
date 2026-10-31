@@ -36,6 +36,12 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 22) {
                 ScreenTitle(text: "Bibliothek")
 
+                #if ADMIN_BUILD
+                // Admin build: the Invite-Codes section leads the
+                // Bibliothek — creating codes is what this build is
+                // opened for, so it is the first thing on screen.
+                AdminInvitesSection()
+                #endif
                 companionSection
                 savedSection
                 profileSection
@@ -117,10 +123,18 @@ struct LibraryView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(selected ? Palette.subtleFill : Color.clear)
-                            )
+                            .background {
+                                // Selected cell = real Liquid Glass
+                                // (v2.4.0 — was a flat subtleFill block);
+                                // unselected cells stay transparent.
+                                if selected {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .glassEffect(
+                                            .regular.tint(Palette.glassTint),
+                                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        )
+                                }
+                            }
                             .overlay(
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .strokeBorder(selected ? Palette.accent : Palette.hairline,

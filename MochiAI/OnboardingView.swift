@@ -110,9 +110,22 @@ struct OnboardingView: View {
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
                                     .frame(maxWidth: .infinity)
-                                    .background(
-                                        Capsule().fill(selected ? Palette.primaryFill : Palette.subtleFill)
-                                    )
+                                    .background {
+                                        // Selected = the solid primary
+                                        // capsule (the app's button
+                                        // language); unselected = real
+                                        // Liquid Glass (v2.4.0 — was a
+                                        // flat subtleFill capsule).
+                                        if selected {
+                                            Capsule().fill(Palette.primaryFill)
+                                        } else {
+                                            Capsule()
+                                                .glassEffect(
+                                                    .regular.tint(Palette.glassTint),
+                                                    in: Capsule()
+                                                )
+                                        }
+                                    }
                             }
                             .buttonStyle(.plain)
                         }

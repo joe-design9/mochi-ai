@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// App root: the pure-black backdrop with its subtle neutral sheen,
-/// onboarding until a profile exists, otherwise the five tabs in a
-/// native TabView (iOS 26 renders its bar in real Liquid Glass),
-/// white-tinted. Appearance follows the system — dark is the hero,
-/// light maps to clean light-gray monochrome.
+/// App root: the pure-black backdrop with its subtle neutral sheen.
+/// A fresh install of the normal build meets the invite gate first
+/// (v2.4.0), then onboarding until a profile exists, otherwise the
+/// five tabs in a native TabView (iOS 26 renders its bar in real
+/// Liquid Glass), white-tinted. Appearance follows the system —
+/// dark is the hero, light maps to clean light-gray monochrome.
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
 
@@ -12,7 +13,9 @@ struct RootView: View {
         ZStack {
             AppBackdrop()
 
-            if store.profile == nil {
+            if store.profile == nil && store.needsInviteGate {
+                InviteGateView()
+            } else if store.profile == nil {
                 OnboardingView()
             } else {
                 TabView(selection: tabSelection) {

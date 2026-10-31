@@ -70,7 +70,7 @@ komplette Oberfläche — zwei volle Läufe, beide müssen grün sein:
 | `feed.png` | `-UITestMode -QAStartTab 1` | Feed inkl. GTA-6-Countdown-Karte |
 | `ideas.png` | `-UITestMode -QAStartTab 2` | Ideen-Karten |
 | `goals.png` | `-UITestMode -QAStartTab 3` | Ziele mit Fortschrittsringen |
-| `library.png` | `-UITestMode -QAStartTab 4` | Bibliothek inkl. About-Zeile „Version 2.3.0" |
+| `library.png` | `-UITestMode -QAStartTab 4` | Bibliothek inkl. About-Zeile „Version 2.4.0" |
 | `chat-empty.png` | `-UITestMode -QAEmpty` | echter Chat-Leerzustand (Willkommens-Hero) |
 | `ideas-empty.png` | `-UITestMode -QAEmpty -QAStartTab 2` | Ideen-Leerzustand |
 | `goals-empty.png` | `-UITestMode -QAEmpty -QAStartTab 3` | Ziele-Leerzustand |
@@ -81,3 +81,21 @@ Jede Glasfläche wird gegen das freigegebene Rezept geprüft: native
 TabView, `glassTint` (dunkel: Weiß 0,08 @ 52 %) auf jeder neutralen
 Glasfläche, Rim-Gradient 0,30 → 0,04, Backdrop reines Schwarz +
 Sheen 0,075 — keine flachen Plastik-Fills.
+
+## v2.4.0 — Dark Appearance, Invite-Gate, Admin-Variante
+
+Ab v2.4.0 läuft die Matrix in **Dark Appearance** (`simctl ui …
+appearance dark` direkt nach dem Boot) — Joel beurteilt Glas auf
+seinem Gerät im Dark Mode; die hellen Captures aus v2.3.0 konnten
+die Glasflächen nicht bewerten. Zwei Aufnahmen kommen dazu:
+
+| Datei | Start | Prüft |
+|---|---|---|
+| `gate.png` | frische Installation, **keine** Argumente | Invite-Gate — der echte erste Screen der Normalversion seit v2.4.0 |
+| `onboarding.png` | gleiche Installation, `-QAPreviewOnboarding` | Onboarding (QA-only Gate-Bypass, nur Anzeige — nichts wird eingelöst/persistiert) |
+| `admin-invites.png` | **QAAdmin**-Build (Bundle `dev.joe.mochiai.admin`), `-UITestMode -QAAdminInvites -QAStartTab 4` | Bibliothek der Admin-Version mit Invite-Codes-Sektion; zwei lokale Sample-Codes (einer offen, einer eingelöst), kein Netz |
+
+Der Workflow baut dafür zusätzlich die Konfiguration `QAAdmin`
+(Schema `MochiAIAdmin`). Die Invite-Sektion steht in der
+Admin-Bibliothek bewusst ganz oben (erster Screen der Sektion =
+Capture-Fläche und Joels Hauptzweck mit der Admin-App).

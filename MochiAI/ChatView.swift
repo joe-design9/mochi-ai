@@ -179,6 +179,33 @@ struct ChatView: View {
             .regular.tint(Palette.glassTint),
             in: Rectangle()
         )
+        // v2.4.0: the bare tinted rectangle read as FLAT BLACK on
+        // device — over the pure-black canvas a full-bleed bar has no
+        // visible edge for the eye to catch. Two neutral light cues
+        // fix the read without changing the layout: a faint sheen
+        // falling from the top edge, and the bright "horizon" line
+        // along the bar's bottom edge (the rim light of the glass).
+        .overlay(
+            LinearGradient(
+                colors: [Color.white.opacity(0.07), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+        )
+        .overlay(alignment: .bottom) {
+            LinearGradient(
+                colors: [
+                    Palette.glassHighlightBottom,
+                    Palette.glassHighlightTop,
+                    Palette.glassHighlightBottom,
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 1)
+            .allowsHitTesting(false)
+        }
     }
 
     // MARK: Empty state
@@ -407,6 +434,11 @@ struct ChatView: View {
                         .regular.tint(Palette.userBubbleTint),
                         in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                     )
+                    // v2.4.0: the shared rim — without it the tinted
+                    // bubble read as a solid gray fill on device (the
+                    // assistant bubbles carry the rim via glassCard,
+                    // the user bubbles were missing it).
+                    .glassRim(cornerRadius: 18)
             }
         }
     }
@@ -441,14 +473,17 @@ struct ChatView: View {
             .tint(Palette.accent)
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(
+            // v2.4.0: real Liquid Glass field (was a solid fieldFill
+            // block — the flat dark-gray surface the user flagged).
+            // Glass inside the glass input bar, rim included.
+            .background {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Palette.fieldFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Palette.hairline, lineWidth: 1)
-            )
+                    .glassEffect(
+                        .regular.tint(Palette.glassTint),
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    )
+            }
+            .glassRim(cornerRadius: 20)
             .onSubmit { sendCurrentInput() }
 
             if hasText {
@@ -823,7 +858,7 @@ struct ChatHistorySheet: View {
                         .foregroundStyle(Palette.accent)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Capsule().fill(Palette.subtleFill))
+                        .glassCapsuleBackground()
                 }
             }
             .padding(.horizontal, 14)

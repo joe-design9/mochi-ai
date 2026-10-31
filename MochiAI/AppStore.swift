@@ -50,6 +50,71 @@ final class AppStore: ObservableObject {
         didSet { saveProfile() }
     }
 
+    // MARK: Invite access (v2.4.0)
+
+    /// True only in the admin build (ADMIN_BUILD compilation
+    /// condition — the ReleaseAdmin/QAAdmin configurations, bundle
+    /// dev.joe.mochiai.admin). Joel's own build: never gated, and
+    /// its Bibliothek carries the Invite-Codes management section.
+    static let isAdminBuild: Bool = {
+        #if ADMIN_BUILD
+        return true
+        #else
+        return false
+        #endif
+    }()
+
+    private enum InviteKeys {
+        static let installID = "invite.installID.v1"
+        static let activated = "invite.activated.v1"
+    }
+
+    /// This install's stable ID for invite redemption: a UUID
+    /// created once and kept in the Keychain (it identifies the
+    /// INSTALL, not a person — there are no accounts).
+    var installID: String {
+        if let existing = KeychainHelper.get(account: InviteKeys.installID) {
+            return existing
+        }
+        let fresh = UUID().uuidString
+        KeychainHelper.set(fresh, account: InviteKeys.installID)
+        return fresh
+    }
+
+    /// Whether this install has redeemed an invite code (persisted
+    /// in the Keychain, so it survives an onboarding reset).
+    @Published private(set) var inviteActivated: Bool =
+        KeychainHelper.get(account: "invite.activated.v1") == "1"
+
+    func markInviteActivated() {
+        KeychainHelper.set("1", account: InviteKeys.activated)
+        inviteActivated = true
+    }
+
+    /// The gate rule: ONLY a fresh install of the normal build is
+    /// gated — no profile yet AND no redeemed code. An existing
+    /// profile grandfathers the install forever (upgrades must
+    /// never lock anyone out, least of all Joel), an activated
+    /// install stays activated even across an onboarding reset, and
+    /// the admin build is never gated.
+    var needsInviteGate: Bool {
+        if Self.isAdminBuild { return false }
+        if inviteActivated { return false }
+        if profile != nil { return false }
+        #if QA
+        if qaBypassGate { return false }
+        #endif
+        return true
+    }
+
+    #if QA
+    /// `-QAPreviewOnboarding`: display-only gate bypass so CI can
+    /// still photograph the onboarding now that a fresh install
+    /// lands on the invite gate. In-memory only — nothing is
+    /// redeemed, nothing is persisted.
+    private(set) var qaBypassGate = false
+    #endif
+
     // MARK: Conversations (chat history)
 
     /// All persisted conversations that contain at least one message,
@@ -230,6 +295,9 @@ final class AppStore: ObservableObject {
         hasKey = !key(for: provider).isEmpty
 
         #if QA
+        if ProcessInfo.processInfo.arguments.contains("-QAPreviewOnboarding") {
+            qaBypassGate = true
+        }
         seedUITestDataIfRequested()
         #endif
     }

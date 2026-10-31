@@ -65,7 +65,7 @@ struct IdeasView: View {
                         .foregroundStyle(Palette.secondaryText)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 4)
-                        .background(Capsule().fill(Palette.subtleFill))
+                        .glassCapsuleBackground()
                     Spacer()
                     BookmarkButton(item: savedItem)
                 }
