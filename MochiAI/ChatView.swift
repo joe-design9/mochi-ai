@@ -235,7 +235,16 @@ struct ChatView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 18) {
+                // Deliberately NOT lazy (v2.2.3): the QA send-flow
+                // caught the lazy stack losing the scroll position
+                // for good — after sends with the keyboard up, the
+                // view rested in the overscroll void past the end
+                // (blank white chat, messages existed but no row was
+                // ever realized near the resting offset, so no
+                // settle pass could recover). Chat histories here
+                // are text-only and modest; a plain stack always
+                // has real geometry for every scroll target.
+                VStack(spacing: 18) {
                     ForEach(store.messages) { message in
                         messageRow(message)
                             .id(message.id)
@@ -536,7 +545,7 @@ struct ChatView: View {
         handledReplyID = reply.id
         Haptics.light()
         performAnchorPass(reply, proxy: proxy, animated: true)
-        for delayMilliseconds in [150, 450] {
+        for delayMilliseconds in [150, 450, 900] {
             Task { @MainActor in
                 try? await Task.sleep(
                     nanoseconds: UInt64(delayMilliseconds) * 1_000_000
