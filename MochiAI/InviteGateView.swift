@@ -27,7 +27,7 @@ struct InviteGateView: View {
             VStack(spacing: 22) {
                 header
                 gateCard
-                Text("Du hast noch keinen Code? Muse wird persönlich weitergegeben — frag einfach die Person, die dir von der App erzählt hat.")
+                Text("Du hast noch keinen Code? Nova wird persönlich weitergegeben — frag einfach die Person, die dir von der App erzählt hat.")
                     .font(.footnote)
                     .foregroundStyle(Palette.secondaryText)
                     .multilineTextAlignment(.center)
@@ -47,10 +47,10 @@ struct InviteGateView: View {
     private var header: some View {
         VStack(spacing: 12) {
             CompanionGlow(character: store.companion, size: 96)
-            Text("Hi, ich bin Muse")
+            Text("Hi, ich bin Nova")
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(Palette.ink)
-            Text("Deine persönliche KI — ich laufe direkt hier auf deinem iPhone. Damit wir loslegen können, aktiviere die App mit deinem Invite-Code.")
+            Text("Deine persönliche KI. Damit wir loslegen können, aktiviere die App mit deinem Invite-Code.")
                 .font(.subheadline)
                 .foregroundStyle(Palette.secondaryText)
                 .multilineTextAlignment(.center)

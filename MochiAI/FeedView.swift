@@ -28,6 +28,7 @@ struct FeedView: View {
 
     private var greetingRow: some View {
         HStack(spacing: 12) {
+            SidebarButton()
             CompanionGlow(character: store.companion, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Hallo, \(store.profile?.name ?? "Freund")")

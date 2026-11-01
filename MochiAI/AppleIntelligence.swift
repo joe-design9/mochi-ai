@@ -14,7 +14,15 @@ enum EngineMode: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .apiKey: return "API-Key"
+        case .apiKey:
+            // v3.0.0: in the normal build this mode IS the Nova Cloud
+            // proxy (no user key exists there); only the admin build
+            // still speaks of an API key.
+            #if ADMIN_BUILD
+            return "API-Key"
+            #else
+            return "Nova Cloud"
+            #endif
         case .appleIntelligence: return "Apple KI"
         }
     }
@@ -195,7 +203,7 @@ final class AppleIntelligenceEngine {
         guard !prior.isEmpty else { return latestText }
         var lines = ["So lief diese Unterhaltung bisher:"]
         for message in prior {
-            lines.append("\(message.role == .user ? "Nutzer" : "Muse"): \(message.text)")
+            lines.append("\(message.role == .user ? "Nutzer" : "Nova"): \(message.text)")
         }
         lines.append("")
         lines.append("Neue Nachricht des Nutzers: \(latestText)")

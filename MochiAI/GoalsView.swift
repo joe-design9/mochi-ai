@@ -11,6 +11,7 @@ struct GoalsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .center) {
+                    SidebarButton()
                     VStack(alignment: .leading, spacing: 4) {
                         ScreenTitle(text: "Ziele")
                         Text("Kleine Schritte, sichtbarer Fortschritt.")

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Library tab: companion picker, saved items, profile, and the KI
 /// settings — a mode switch (API-Key vs. Apple KI on-device) at the top;
@@ -16,6 +17,7 @@ struct LibraryView: View {
 
     @State private var isTesting = false
     @State private var testResult: TestResult?
+    @State private var copiedInstallID = false
 
     /// Drafts are loaded ONCE (not on every tab re-appearance — that used
     /// to silently wipe unsaved edits and test results).
@@ -34,7 +36,10 @@ struct LibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                ScreenTitle(text: "Bibliothek")
+                HStack(spacing: 12) {
+                    SidebarButton()
+                    ScreenTitle(text: "Bibliothek")
+                }
 
                 #if ADMIN_BUILD
                 // Admin build: the Invite-Codes section leads the
@@ -257,6 +262,7 @@ struct LibraryView: View {
                     if store.engineMode == .appleIntelligence {
                         appleModeSection
                     } else {
+                    #if ADMIN_BUILD
                     FieldLabel(text: "Anbieter")
                     Picker("Anbieter", selection: providerBinding) {
                         ForEach(APIProvider.allCases) { provider in
@@ -373,6 +379,9 @@ struct LibraryView: View {
                     Text("Jeder Anbieter behält seinen eigenen Key — Wechseln löscht nichts.")
                         .font(.footnote)
                         .foregroundStyle(Palette.secondaryText)
+                    #else
+                    proxyModeSection
+                    #endif
                     }
 
                     Divider().overlay(Palette.hairline)
@@ -409,6 +418,32 @@ struct LibraryView: View {
             Text("Lokal auf deinem iPhone — kein Key, keine Cloud.")
                 .font(.footnote)
                 .foregroundStyle(Palette.secondaryText)
+        }
+    }
+
+    // MARK: Nova Cloud (normal build)
+
+    /// Normal build (v3.0.0): there is deliberately NO API-key UI —
+    /// text chat runs through the Nova backend proxy, which holds the
+    /// only Gemini key server-side. This block only reports the
+    /// connection state; there is nothing to configure.
+    private var proxyModeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: store.proxyEligible
+                      ? "checkmark.circle.fill" : "person.crop.circle.badge.clock")
+                    .foregroundStyle(store.proxyEligible ? Palette.success : Palette.secondaryText)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(store.proxyEligible ? "Nova Cloud aktiv" : "Noch nicht aktiviert")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Palette.ink)
+                    Text(store.proxyEligible
+                         ? "Antworten kommen vom Nova-Server — du brauchst keinen eigenen API-Key und keine Einstellungen."
+                         : "Sobald diese Installation mit einem Invite-Code aktiviert ist, antwortet Nova über die Cloud. Bis dahin läuft der Demo-Modus.")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.secondaryText)
+                }
+            }
         }
     }
 
@@ -510,15 +545,34 @@ struct LibraryView: View {
             HStack(spacing: 14) {
                 CompanionGlow(character: store.companion, size: 46)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Muse")
+                    Text("Nova")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(Palette.ink)
-                    Text("Muse — deine persönliche KI. Läuft lokal auf deinem iPhone, keine Cloud nötig.")
+                    Text("Nova — deine persönliche KI. Antworten kommen über die Nova-Cloud — ganz ohne eigenen API-Key.")
                         .font(.footnote)
                         .foregroundStyle(Palette.secondaryText)
                     Text("Version \(AppInfo.version)")
                         .font(.caption)
                         .foregroundStyle(Palette.secondaryText)
+                    // The install ID identifies THIS installation to
+                    // the backend (invite activation). The owner needs
+                    // it for the server allowlist — tap copies it.
+                    Button {
+                        UIPasteboard.general.string = store.installID
+                        copiedInstallID = true
+                        Haptics.selection()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: copiedInstallID ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text(copiedInstallID
+                                 ? "Installations-ID kopiert"
+                                 : "Installations-ID: \(String(store.installID.prefix(8)))…")
+                                .font(.caption.monospaced())
+                        }
+                        .foregroundStyle(Palette.secondaryText)
+                    }
+                    .buttonStyle(.plain)
                 }
                 Spacer()
             }

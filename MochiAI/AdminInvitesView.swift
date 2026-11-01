@@ -32,7 +32,7 @@ struct AdminInvitesSection: View {
             FieldLabel(text: "Invite-Codes")
             Card {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Erstelle Codes und gib sie an Leute weiter, die Muse nutzen sollen. Jeder Code aktiviert genau eine Installation — was hier steht, ist der Stand auf dem Server.")
+                    Text("Erstelle Codes und gib sie an Leute weiter, die Nova nutzen sollen. Jeder Code aktiviert genau eine Installation — was hier steht, ist der Stand auf dem Server.")
                         .font(.footnote)
                         .foregroundStyle(Palette.secondaryText)
 
@@ -141,7 +141,7 @@ struct AdminInvitesSection: View {
             Spacer()
             statusChip(row)
             ShareLink(
-                item: "Dein Muse-Invite-Code: \(row.code) — einfach beim ersten Start der App eingeben."
+                item: "Dein Nova-Invite-Code: \(row.code) — einfach beim ersten Start der App eingeben."
             ) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 15, weight: .semibold))

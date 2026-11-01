@@ -7,7 +7,8 @@ import SwiftUI
 /// glass caption/notice cards, floating glass control capsule with the
 /// red-tinted end button inside).
 ///
-/// Transports: with the Gemini API-Key engine active, the call runs on
+/// Transports: with a Gemini key (admin build / grandfathered) or a
+/// backend-minted Live token (normal build, v3.0.0) the call runs on
 /// the Gemini Live API (GeminiLiveEngine — real-time spoken answers,
 /// barge-in included). In Apple-KI mode, with the OpenAI-compatible
 /// provider, or when Live fails, the SAME screen runs the standard
@@ -385,7 +386,7 @@ final class CallController: ObservableObject {
             let micOK = await VoicePermissions.requestMicrophone()
             guard self.callActive, self.generation == gen else { return }
             guard micOK else {
-                self.note = "Ohne Mikrofon kann Muse dich nicht hören. Erlaube den Zugriff in den iPhone-Einstellungen — dann klappt auch das Telefonieren."
+                self.note = "Ohne Mikrofon kann Nova dich nicht hören. Erlaube den Zugriff in den iPhone-Einstellungen — dann klappt auch das Telefonieren."
                 self.noteNeedsSettings = true
                 return
             }
@@ -395,11 +396,18 @@ final class CallController: ObservableObject {
 
     private func beginTransports() {
         guard let store else { return }
-        let canLive = store.engineMode == .apiKey
-            && store.provider == .gemini
-            && store.hasKey
-        if canLive {
-            startLive(model: store.liveModel())
+        if store.hasKey {
+            // Own key (admin build — or a key stored by an older
+            // version): direct Live for Gemini, pipeline otherwise.
+            if store.engineMode == .apiKey, store.provider == .gemini {
+                startLive(model: store.liveModel())
+            } else {
+                startFallback()
+            }
+        } else if store.proxyEligible {
+            // Nova v3.0.0: no key on this install — the call runs on
+            // a short-lived Live token minted by the backend.
+            startLiveViaProxy(model: store.liveModel())
         } else {
             startFallback()
         }
@@ -407,8 +415,54 @@ final class CallController: ObservableObject {
 
     // MARK: Live transport
 
+    /// How the current Live session authenticates — the retry
+    /// cascade needs to know: a key can simply reconnect, an
+    /// ephemeral token is single-use and must be re-minted first.
+    private enum LiveAuth {
+        case key
+        case proxyToken(String)
+    }
+
+    private var liveAuth: LiveAuth?
+
     private func startLive(model: String) {
+        liveAuth = .key
+        beginLive(model: model)
+    }
+
+    /// Fetches a fresh ephemeral token from the backend, then starts
+    /// Live with it. Any failure lands in the pipeline fallback —
+    /// the same graceful path as a failed direct setup.
+    private func startLiveViaProxy(model: String) {
         guard callActive, let store else { return }
+        transport = .live
+        activity = .connecting
+        let gen = generation
+        let installID = store.installID
+        Task { @MainActor [weak self] in
+            let token = await BackendAI.liveToken(installID: installID)
+            guard let self, self.callActive, self.generation == gen else { return }
+            guard let token else {
+                self.startFallback()
+                return
+            }
+            self.liveAuth = .proxyToken(token)
+            self.beginLive(model: model)
+        }
+    }
+
+    /// Re-runs a Live attempt (fallback model / the one reconnect)
+    /// through whichever auth path the session started with.
+    private func retryLive(model: String) {
+        if case .proxyToken = liveAuth {
+            startLiveViaProxy(model: model)
+        } else {
+            startLive(model: model)
+        }
+    }
+
+    private func beginLive(model: String) {
+        guard callActive, let store, let liveAuth else { return }
         transport = .live
         currentLiveModel = model
         activity = .connecting
@@ -424,7 +478,7 @@ final class CallController: ObservableObject {
             if !self.triedLiveFallbackModel,
                model != APIProvider.fallbackGeminiLiveModel {
                 self.triedLiveFallbackModel = true
-                self.startLive(model: APIProvider.fallbackGeminiLiveModel)
+                self.retryLive(model: APIProvider.fallbackGeminiLiveModel)
             } else {
                 self.showBanner("Live nicht verfügbar — Standard-Modus")
                 self.startFallback()
@@ -434,7 +488,7 @@ final class CallController: ObservableObject {
             guard let self, self.callActive else { return }
             if !self.reconnectAttempted {
                 self.reconnectAttempted = true
-                self.startLive(model: self.currentLiveModel)
+                self.retryLive(model: self.currentLiveModel)
             } else {
                 self.endCallWithNote("Die Verbindung ist abgebrochen — der Anruf wird beendet.")
             }
@@ -462,7 +516,12 @@ final class CallController: ObservableObject {
 
         let instruction = Persona.systemPrompt(profile: store.profile)
             + " Du bist gerade in einem Live-Telefonat: Antworte auf Deutsch, kurz und gesprächig — ein bis drei Sätze, wie in einem echten Gespräch."
-        liveEngine.start(apiKey: store.activeKey, model: model, systemInstruction: instruction)
+        switch liveAuth {
+        case .key:
+            liveEngine.start(apiKey: store.activeKey, model: model, systemInstruction: instruction)
+        case .proxyToken(let token):
+            liveEngine.startWithToken(token, model: model, systemInstruction: instruction)
+        }
     }
 
     private func observeLiveSpeaking() {

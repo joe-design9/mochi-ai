@@ -10,6 +10,7 @@ struct IdeasView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .center) {
+                    SidebarButton()
                     VStack(alignment: .leading, spacing: 4) {
                         ScreenTitle(text: "Ideen")
                         Text("Speichere, was dich anspricht — der Rest fliegt raus.")

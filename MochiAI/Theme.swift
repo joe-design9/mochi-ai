@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Palette (Muse identity: monochrome — pure black + neutral glass)
+// MARK: - Palette (Nova identity: monochrome — pure black + neutral glass)
 //
 // The real Muse app's dark UI: a pure-black canvas, neutral/clear Liquid
 // Glass surfaces on top, white as the only "accent". NO hue anywhere in
@@ -307,6 +307,32 @@ struct FieldLabel: View {
             .font(.caption.weight(.semibold))
             .tracking(1.0)
             .foregroundStyle(Palette.secondaryText)
+    }
+}
+
+// MARK: - Sidebar button (v3.0.0)
+
+/// Opens the Nova sidebar — the leading button of every section
+/// header (chat, feed, ideas, goals, library), one consistent glass
+/// circle everywhere.
+struct SidebarButton: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        Button {
+            store.isSidebarOpen = true
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .frame(width: 38, height: 38)
+                .glassEffect(
+                    .regular.tint(Palette.glassTint).interactive(),
+                    in: Circle()
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Seitenleiste öffnen")
     }
 }
 

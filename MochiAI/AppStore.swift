@@ -1,9 +1,11 @@
 import Combine
 import Foundation
 
-/// Central app state. Everything is local: profile, chat, saved items,
-/// ideas and goals live in UserDefaults; API keys live in the Keychain,
-/// one per provider.
+/// Central app state. Profile, chat, saved items, ideas and goals
+/// live in UserDefaults; API keys (admin build / grandfathered
+/// installs) live in the Keychain, one per provider. Since v3.0.0
+/// the normal build answers through the Nova backend proxy instead
+/// of a user key (see BackendAI).
 @MainActor
 final class AppStore: ObservableObject {
     enum Tab: Int, CaseIterable {
@@ -29,6 +31,12 @@ final class AppStore: ObservableObject {
     }
 
     @Published var selectedTab: Tab = .chat
+
+    /// Nova v3.0.0: the Muse-style slide-over sidebar (sections +
+    /// chat history + search) replaced the bottom TabView. It lives
+    /// in the store so every section header can open it and the
+    /// sidebar itself can close it after a selection.
+    @Published var isSidebarOpen = false
 
     // MARK: Companion
 
@@ -338,6 +346,12 @@ final class AppStore: ObservableObject {
             teleport: "Leonida"
         )
         selectedTab = startTab
+        if arguments.contains("-QAProxyMock") {
+            // Route the send queue through BackendAI's local mock:
+            // in-memory activation only (nothing persisted, nothing
+            // redeemed) so the proxy code path is what CI exercises.
+            inviteActivated = true
+        }
         if arguments.contains("-QAEmpty") {
             messages = []
             goals = []
@@ -350,7 +364,7 @@ final class AppStore: ObservableObject {
         messages = [
             ChatMessage(
                 role: .user,
-                text: "Hey Muse, kurze Frage: Was soll ich heute Abend kochen?",
+                text: "Hey Nova, kurze Frage: Was soll ich heute Abend kochen?",
                 date: now.addingTimeInterval(-3600)
             ),
             ChatMessage(
@@ -587,7 +601,18 @@ final class AppStore: ObservableObject {
                 profile: profile
             )
         case .apiKey:
-            if hasKey, !history.isEmpty {
+            if chatTransport == .proxy {
+                // Nova v3.0.0: no user key — the reply comes from
+                // the backend proxy (the `chat` Edge Function on the
+                // invite backend, which holds the only Gemini key).
+                // BackendAI.chatReply converts every failure into a
+                // displayable note, so the queue can never jam.
+                reply = await BackendAI.chatReply(
+                    history: history,
+                    profile: profile,
+                    installID: installID
+                )
+            } else if hasKey, !history.isEmpty {
                 let config = EngineConfig(
                     provider: provider,
                     key: activeKey,
@@ -658,7 +683,7 @@ final class AppStore: ObservableObject {
         guard messages.isEmpty, let profile else { return }
         messages.append(ChatMessage(
             role: .assistant,
-            text: "Hi \(profile.name)! Ich bin Muse — manche nennen mich auch Mochi. Schön, dass du da bist. Erzähl mir von deinem Tag, frag mich was oder schau unten in die Tabs: Im Feed wartet der GTA-6-Countdown, bei den Ideen gibt's Inspiration."
+            text: "Hi \(profile.name)! Ich bin Nova — manche nennen mich auch Mochi. Schön, dass du da bist. Erzähl mir von deinem Tag, frag mich was oder stöber in der Seitenleiste: Im Feed wartet der GTA-6-Countdown, bei den Ideen gibt's Inspiration."
         ))
     }
 
@@ -745,11 +770,42 @@ final class AppStore: ObservableObject {
     var activeBaseURL: String { baseURL(for: provider) }
     var activeModel: String { model(for: provider) }
 
-    /// True when the SELECTED mode can actually answer: API-Key mode
-    /// needs a stored key; Apple-KI mode needs the model available.
+    // MARK: Chat transport (v3.0.0)
+
+    /// Which path a text reply takes in API mode.
+    enum ChatTransport {
+        /// The user's own provider key. The admin build manages it in
+        /// the Bibliothek; in the normal build there is NO key UI
+        /// anymore, but a key stored by an older version keeps
+        /// working silently — an existing install (above all Joel's)
+        /// must never break on upgrade.
+        case ownKey
+        /// The Nova backend proxy: the `chat` Edge Function on the
+        /// invite backend holds the only Gemini key server-side.
+        case proxy
+        /// The local demo responder (no key, install not activated).
+        case demo
+    }
+
+    var chatTransport: ChatTransport {
+        if hasKey { return .ownKey }
+        if proxyEligible { return .proxy }
+        return .demo
+    }
+
+    /// The proxy serves installs that redeemed an invite code — and
+    /// the admin build, whose installs the backend's OWNER_INSTALL_IDS
+    /// allowlist covers (the admin app never redeems a code itself).
+    var proxyEligible: Bool {
+        inviteActivated || Self.isAdminBuild
+    }
+
+    /// True when the SELECTED mode can actually answer: API mode via
+    /// an own key or the proxy; Apple-KI mode needs the model
+    /// available.
     var isConfigured: Bool {
         switch engineMode {
-        case .apiKey: return hasKey
+        case .apiKey: return chatTransport != .demo
         case .appleIntelligence: return appleAvailability.isAvailable
         }
     }
@@ -758,7 +814,11 @@ final class AppStore: ObservableObject {
     var engineLabel: String {
         switch engineMode {
         case .apiKey:
-            return hasKey ? provider.engineLabel : "Demo-Modus"
+            switch chatTransport {
+            case .ownKey: return provider.engineLabel
+            case .proxy: return "Nova Cloud"
+            case .demo: return "Demo-Modus"
+            }
         case .appleIntelligence:
             return appleAvailability.isAvailable ? "Apple KI (lokal)" : "Apple KI nicht verfügbar"
         }
@@ -768,7 +828,11 @@ final class AppStore: ObservableObject {
     var engineCaption: String {
         switch engineMode {
         case .apiKey:
-            return hasKey ? "\(provider.engineLabel) (eigener Key)" : "Demo-Modus (lokal)"
+            switch chatTransport {
+            case .ownKey: return "\(provider.engineLabel) (eigener Key)"
+            case .proxy: return "Nova Cloud (Server — kein eigener Key nötig)"
+            case .demo: return "Demo-Modus (lokal)"
+            }
         case .appleIntelligence:
             return appleAvailability.isAvailable
                 ? "Apple KI (lokal)"

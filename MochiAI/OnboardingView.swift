@@ -31,8 +31,13 @@ struct OnboardingView: View {
                  chips: ["Vice City", "Tokio", "Ans Meer", "In die Berge"]),
     ]
 
-    /// 0–3 questions, 4 summary, 5 connect step.
+    /// 0–3 questions, 4 summary, 5 connect step (admin build only —
+    /// v3.0.0: the normal build has no API key anywhere, so its
+    /// onboarding ends at the summary and Nova runs via the Cloud).
     @State private var step = 0
+
+    private var hasConnectStep: Bool { AppStore.isAdminBuild }
+    private var totalSteps: Int { questions.count + 1 + (hasConnectStep ? 1 : 0) }
     @State private var answers = ["", "", "", ""]
     @State private var connectProvider: APIProvider = .gemini
     @State private var keyDraft = ""
@@ -65,20 +70,21 @@ struct OnboardingView: View {
     private var header: some View {
         VStack(spacing: 12) {
             CompanionGlow(character: store.companion, size: 96)
-            Text("Hi, ich bin Muse")
+            Text("Hi, ich bin Nova")
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(Palette.ink)
-            Text("Deine persönliche KI — ich laufe direkt hier auf deinem iPhone. Lass uns kurz einrichten, wer du bist. Dauert keine Minute.")
+            Text("Deine persönliche KI. Lass uns kurz einrichten, wer du bist — dauert keine Minute.")
                 .font(.subheadline)
                 .foregroundStyle(Palette.secondaryText)
                 .multilineTextAlignment(.center)
         }
     }
 
-    /// Progress dots: four questions, the summary, the connect step.
+    /// Progress dots: four questions, the summary, and — admin build
+    /// only — the connect step.
     private var stepDots: some View {
         HStack(spacing: 6) {
-            ForEach(0..<(questions.count + 2), id: \.self) { index in
+            ForEach(0..<totalSteps, id: \.self) { index in
                 Circle()
                     .fill(index <= step ? Palette.accent : Palette.subtleFill)
                     .frame(width: 7, height: 7)
@@ -182,11 +188,17 @@ struct OnboardingView: View {
                 summaryRow(icon: "moon.stars.fill", label: "Entspannung", value: answers[1])
                 summaryRow(icon: "heart.fill", label: "Hobby", value: answers[2])
                 summaryRow(icon: "airplane", label: "Teleport-Ziel", value: answers[3])
-                Text("Stimmt so? Dann geht's los — ein optionaler Schritt wartet noch.")
+                Text(hasConnectStep
+                     ? "Stimmt so? Dann geht's los — ein optionaler Schritt wartet noch."
+                     : "Stimmt so? Dann geht's los.")
                     .font(.footnote)
                     .foregroundStyle(Palette.secondaryText)
                 Button("Los geht's") {
-                    withAnimation { step = questions.count + 1 }
+                    if hasConnectStep {
+                        withAnimation { step = questions.count + 1 }
+                    } else {
+                        finish()
+                    }
                 }
                 .accentBlock()
                 .buttonStyle(.plain)
@@ -220,7 +232,7 @@ struct OnboardingView: View {
                 Text("Großes Modell verbinden")
                     .font(.system(.title3, design: .rounded).weight(.bold))
                     .foregroundStyle(Palette.ink)
-                Text("Optional: Mit einem eigenen API-Key rede ich mit einem großen Modell statt im Demo-Modus. Ohne Key ist auch alles gut — dann bleibe ich lokal auf deinem iPhone.")
+                Text("Optional: Mit einem eigenen API-Key rede ich direkt mit dem Anbieter statt über die Nova-Cloud. Ohne Key ist auch alles gut — dann läuft alles über den Nova-Server.")
                     .font(.subheadline)
                     .foregroundStyle(Palette.secondaryText)
 

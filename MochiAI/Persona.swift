@@ -4,7 +4,7 @@ import Foundation
 /// pattern responder (Demo-Modus) that always speaks as Muse/Mochi.
 enum Persona {
     static func systemPrompt(profile: UserProfile?) -> String {
-        var prompt = "Du bist Muse, die persönliche KI von Meta, in deiner eigenen App. Der Nutzer nennt dich auch Mochi. Antworte in der Sprache des Nutzers (meist Deutsch), locker, freundlich, hilfreich und eher kurz — zwei bis vier Sätze, wenn nicht mehr nötig ist."
+        var prompt = "Du bist Nova, die persönliche KI von Meta, in deiner eigenen App. Der Nutzer nennt dich auch Mochi. Antworte in der Sprache des Nutzers (meist Deutsch), locker, freundlich, hilfreich und eher kurz — zwei bis vier Sätze, wenn nicht mehr nötig ist."
         if let profile {
             prompt += " Das weißt du über den Nutzer: Name: \(profile.name). So entspannt der Nutzer am liebsten: \(profile.relax). Hobby, das ihn die Zeit vergessen lässt: \(profile.hobby). Teleport-Wunschziel: \(profile.teleport). Nutze diese Infos natürlich und nicht aufdringlich."
         }
@@ -40,7 +40,7 @@ struct LocalResponder {
         }
 
         if contains(text, ["wer bist du", "wie heißt du", "wie heisst du", "dein name", "was bist du"]) {
-            return "Ich bin Muse, deine persönliche KI von Meta — meine Freunde nennen mich Mochi. Ich wohne hier in dieser App auf deinem iPhone und helfe dir durch den Tag."
+            return "Ich bin Nova, deine persönliche KI von Meta — meine Freunde nennen mich Mochi. Ich wohne hier in dieser App auf deinem iPhone und helfe dir durch den Tag."
         }
 
         if contains(text, ["gta 6", "gta vi", "gta"]) {
@@ -65,16 +65,16 @@ struct LocalResponder {
 
         if contains(text, ["idee", "langweilig", "was soll ich machen", "was kann ich machen"]) {
             if let idea = ideaTitles.randomElement() {
-                return "Wie wäre es damit: „\(idea)“ — im Tab „Ideen“ findest du noch mehr davon, und was dir gefällt, speicherst du in die Bibliothek."
+                return "Wie wäre es damit: „\(idea)“ — in der Seitenleiste unter „Ideen“ findest du noch mehr davon, und was dir gefällt, speicherst du in die Bibliothek."
             }
-            return "Schau mal in den Tab „Ideen“ — da wartet bestimmt etwas, das zu deiner Stimmung passt."
+            return "Schau mal in der Seitenleiste unter „Ideen“ — da wartet bestimmt etwas, das zu deiner Stimmung passt."
         }
 
         if contains(text, ["ziel", "ziele", "fortschritt"]) {
             if let first = goalTitles.first {
-                return "Dein erstes Ziel ist gerade „\(first)“. Im Tab „Ziele“ kannst du Schritte abhaken und den Ring füllen — kleine Schritte zählen doppelt."
+                return "Dein erstes Ziel ist gerade „\(first)“. Unter „Ziele“ in der Seitenleiste kannst du Schritte abhaken und den Ring füllen — kleine Schritte zählen doppelt."
             }
-            return "Du hast noch keine Ziele angelegt. Im Tab „Ziele“ kannst du dir eins setzen — klein anfangen reicht völlig."
+            return "Du hast noch keine Ziele angelegt. In der Seitenleiste unter „Ziele“ kannst du dir eins setzen — klein anfangen reicht völlig."
         }
 
         if contains(text, ["entspann", "abschalt", "chill"]) {
@@ -120,9 +120,9 @@ struct LocalResponder {
 
         // Varied reflective fallbacks that use the profile.
         var fallbacks = [
-            "Spannend! Erzähl mir mehr davon, \(name). (Kleiner Hinweis: Ich laufe gerade im Demo-Modus — mit einem API-Key in den Einstellungen werde ich noch schlauer.)",
-            "Verstanden. Und wenn du magst, machen wir daraus direkt ein Ziel oder eine Idee — die Tabs unten warten schon.",
-            "Gute Frage! Im Demo-Modus antworte ich mit Hausmitteln — für die ganz großen Antworten verbindest du in der Bibliothek einfach deinen API-Key.",
+            "Spannend! Erzähl mir mehr davon, \(name). (Kleiner Hinweis: Ich laufe gerade im Demo-Modus — über die Nova-Cloud werde ich noch schlauer.)",
+            "Verstanden. Und wenn du magst, machen wir daraus direkt ein Ziel oder eine Idee — die Seitenleiste wartet schon.",
+            "Gute Frage! Im Demo-Modus antworte ich mit Hausmitteln — für die ganz großen Antworten brauche ich die Nova-Cloud.",
         ]
         if let profile {
             fallbacks.append("Notiert, \(profile.name). Zwischen „\(profile.relax)“ und „\(profile.hobby)“ klingt dein Leben jedenfalls nicht langweilig.")

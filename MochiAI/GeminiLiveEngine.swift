@@ -18,6 +18,12 @@ import Foundation
 /// ~0.3 s buffers chained through its completion handler, so the
 /// queue stays ahead of the playhead for the whole turn.
 ///
+/// Stutter fix (v3.0.0): v2.2.1 still let STALE buffer completions
+/// corrupt the next turn after a barge-in flush (see schedulePCM) —
+/// the actual cause of the on-device "es hakt" reports. Playback now
+/// runs under a generation counter, and the player's queue is capped
+/// so the flushable cushion lives in the jitter buffer.
+///
 /// Threading: all state lives on the main queue (socket callbacks hop
 /// there). The audio tap only checks the lock-protected gate and
 /// copies its buffer; conversion + base64 + socket send run on a
@@ -72,6 +78,20 @@ final class GeminiLiveEngine: ObservableObject {
     private static let primeBytes = 19_200   // 0.40 s @ 24 kHz Int16 mono
     private static let chunkBytes = 14_400   // 0.30 s @ 24 kHz Int16 mono
 
+    /// Playback generation (v3.0.0 — the barge-in stutter fix).
+    /// Bumped by every flush and every full playback reset. Buffer
+    /// completions capture the generation they were scheduled in and
+    /// NO-OP once it has moved on; see `schedulePCM` for the defect
+    /// this kills.
+    private var playbackGeneration = 0
+
+    /// Cap on buffers handed to the player at once (6 × ~0.3 s ≈
+    /// 1.8 s): any further cushion stays in `jitterData`, where a
+    /// barge-in flush drops it instantly — audio already queued on
+    /// the player itself can only be cut by stopping the node, and
+    /// keeping the queue short keeps that cut tight.
+    private static let maxScheduledBuffers = 6
+
     // Uplink: conversion + send run on this serial queue, never on
     // the audio tap's realtime thread. The converter is used ONLY on
     // this queue (AVAudioConverter is not thread-safe).
@@ -109,17 +129,37 @@ final class GeminiLiveEngine: ObservableObject {
     // MARK: Lifecycle
 
     func start(apiKey: String, model: String, systemInstruction: String) {
+        var components = URLComponents()
+        components.scheme = "wss"
+        components.host = "generativelanguage.googleapis.com"
+        components.path = "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+        components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        beginConnection(components: components, model: model, systemInstruction: systemInstruction)
+    }
+
+    /// Nova v3.0.0: Live via a short-lived ephemeral token minted by
+    /// the backend (`live-token` Edge Function) — the constrained
+    /// endpoint takes the token as `access_token`, and no API key
+    /// ever reaches the device in the normal build. The setup frame
+    /// is identical to the key path (per Google's docs the session
+    /// config, speechConfig included, belongs in the client's setup
+    /// message, not in the token).
+    func startWithToken(_ token: String, model: String, systemInstruction: String) {
+        var components = URLComponents()
+        components.scheme = "wss"
+        components.host = "generativelanguage.googleapis.com"
+        components.path = "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained"
+        components.queryItems = [URLQueryItem(name: "access_token", value: token)]
+        beginConnection(components: components, model: model, systemInstruction: systemInstruction)
+    }
+
+    private func beginConnection(components: URLComponents, model: String, systemInstruction: String) {
         stop()
         intentionalStop = false
         phase = .connecting
         pendingUserTranscript = ""
         pendingAssistantTranscript = ""
 
-        var components = URLComponents()
-        components.scheme = "wss"
-        components.host = "generativelanguage.googleapis.com"
-        components.path = "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
-        components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else {
             phase = .closed
             onSetupFailure?("Live-Adresse ungültig")
@@ -407,12 +447,17 @@ final class GeminiLiveEngine: ObservableObject {
             playbackPrimed = true
             isModelSpeaking = true
         }
-        while jitterData.count >= Self.chunkBytes {
+        while jitterData.count >= Self.chunkBytes,
+              scheduledBuffers < Self.maxScheduledBuffers {
             let chunk = jitterData.prefix(Self.chunkBytes)
             jitterData.removeFirst(Self.chunkBytes)
             schedulePCM(Data(chunk))
         }
-        if turnAudioEnded, !jitterData.isEmpty {
+        if turnAudioEnded, !jitterData.isEmpty,
+           scheduledBuffers < Self.maxScheduledBuffers {
+            // The final partial buffer goes out only while the
+            // player's queue has room; otherwise it stays in the
+            // jitter buffer and the next completion's pump sends it.
             let rest = jitterData
             jitterData.removeAll()
             schedulePCM(rest)
@@ -440,9 +485,26 @@ final class GeminiLiveEngine: ObservableObject {
             }
         }
         scheduledBuffers += 1
+        // Capture the CURRENT playback generation: the completion
+        // below is only allowed to touch the bookkeeping if no flush
+        // or reset has happened since this buffer was scheduled.
+        let generation = playbackGeneration
         playerNode.scheduleBuffer(buffer, at: nil, options: []) { [weak self] in
             DispatchQueue.main.async {
                 guard let self else { return }
+                // v3.0.0 stutter fix — THE defect: playerNode.stop()
+                // (barge-in flush, teardown) discards scheduled
+                // buffers, but their completions still fire
+                // afterwards. Without the generation check, a stale
+                // completion decremented the NEW turn's counter; when
+                // it hit zero mid-turn with an empty jitter buffer,
+                // the completion reset playbackPrimed/isModelSpeaking
+                // under the playing turn — the next audio chunk then
+                // had to re-prime the full 0.4 s cushion first, which
+                // is exactly the audible gap/stutter Joel reported
+                // ("es hakt bei den Anrufen"). Stale completions now
+                // die here, silently.
+                guard generation == self.playbackGeneration else { return }
                 self.scheduledBuffers = max(0, self.scheduledBuffers - 1)
                 if self.scheduledBuffers == 0, self.jitterData.isEmpty {
                     // Queue fully drained — after a real underrun
@@ -461,7 +523,10 @@ final class GeminiLiveEngine: ObservableObject {
 
     /// Barge-in: drop everything buffered and queued so the model
     /// stops NOW; the next turn primes again from an empty buffer.
+    /// The generation bump invalidates every completion of the
+    /// buffers being discarded (they still fire after stop()).
     private func flushPlayback() {
+        playbackGeneration += 1
         jitterData.removeAll()
         scheduledBuffers = 0
         playbackPrimed = false
@@ -473,8 +538,11 @@ final class GeminiLiveEngine: ObservableObject {
         }
     }
 
-    /// Full playback reset (stop/teardown paths).
+    /// Full playback reset (stop/teardown paths) — same generation
+    /// bump, so completions of a torn-down session can never corrupt
+    /// the next session's playback state.
     private func resetPlaybackState() {
+        playbackGeneration += 1
         jitterData.removeAll()
         scheduledBuffers = 0
         playbackPrimed = false

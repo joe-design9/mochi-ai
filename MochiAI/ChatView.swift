@@ -12,7 +12,7 @@ enum Haptics {
     }
 }
 
-/// Chat tab in the Muse identity — full Liquid Glass like the real
+/// Chat tab in the Nova identity — full Liquid Glass like the real
 /// Muse app: a glass header bar, assistant answers on neutral glass
 /// cards with the companion beside them, user messages in brighter
 /// smoky-glass bubbles, and the empty state greets with the large
@@ -23,7 +23,6 @@ enum Haptics {
 struct ChatView: View {
     @EnvironmentObject private var store: AppStore
     @State private var input = ""
-    @State private var showingHistory = false
     @State private var showingCall = false
     @FocusState private var inputFocused: Bool
 
@@ -116,9 +115,6 @@ struct ChatView: View {
             // background so the first answer starts faster.
             store.prewarmActiveAppleSessionIfNeeded()
         }
-        .sheet(isPresented: $showingHistory) {
-            ChatHistorySheet()
-        }
         .fullScreenCover(isPresented: $showingCall) {
             CallView()
         }
@@ -128,9 +124,10 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
+            SidebarButton()
             CompanionGlow(character: store.companion, size: 34)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Muse")
+                Text("Nova")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(Palette.ink)
                 Text(store.engineLabel)
@@ -159,17 +156,6 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
             }
-            Button {
-                showingHistory = true
-            } label: {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
-                    .frame(width: 34, height: 34)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Chatverlauf")
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
@@ -220,7 +206,7 @@ struct ChatView: View {
                         .font(.system(.largeTitle, design: .rounded).weight(.bold))
                         .foregroundStyle(Palette.ink)
                         .multilineTextAlignment(.center)
-                    Text("Ich bin Muse — manche nennen mich auch Mochi. Erzähl mir von deinem Tag, frag mich was oder stöber durch die Tabs: Im Feed wartet der GTA-6-Countdown.")
+                    Text("Ich bin Nova — manche nennen mich auch Mochi. Erzähl mir von deinem Tag, frag mich was oder stöber in der Seitenleiste: Im Feed wartet der GTA-6-Countdown.")
                         .font(.subheadline)
                         .foregroundStyle(Palette.secondaryText)
                         .multilineTextAlignment(.center)
@@ -464,7 +450,7 @@ struct ChatView: View {
             TextField(
                 "",
                 text: $input,
-                prompt: Text("Nachricht an Muse …").foregroundColor(Palette.secondaryText),
+                prompt: Text("Nachricht an Nova …").foregroundColor(Palette.secondaryText),
                 axis: .vertical
             )
             .lineLimit(1...4)
@@ -754,123 +740,6 @@ struct ChatView: View {
         showingCall = true
     }
 #endif
-}
-
-// MARK: - Chat history sheet
-
-/// Lists all past conversations (newest first) with the first user
-/// message as the title; tap to reopen, swipe to delete, and a prominent
-/// "Neuer Chat" button on top.
-struct ChatHistorySheet: View {
-    @EnvironmentObject private var store: AppStore
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack {
-            AppBackdrop()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .center, spacing: 12) {
-                    SectionTitle(text: "Chatverlauf")
-                    Spacer()
-                    Button {
-                        store.startNewConversation()
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .bold))
-                            Text("Neuer Chat")
-                        }
-                        .accentCapsule()
-                    }
-                    .buttonStyle(.plain)
-                    // Explicit close (swipe-down works too — nobody gets trapped).
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Palette.ink)
-                            .frame(width: 32, height: 32)
-                            .glassEffect(
-                                .regular.tint(Palette.glassTint).interactive(),
-                                in: Circle()
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Schließen")
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 8)
-
-                if store.historyConversations.isEmpty {
-                    VStack(spacing: 10) {
-                        CompanionView(character: store.companion, size: 64)
-                        Text("Noch keine alten Chats. Sobald du hier schreibst, tauchen deine Unterhaltungen in dieser Liste auf.")
-                            .font(.subheadline)
-                            .foregroundStyle(Palette.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 48)
-                    Spacer()
-                } else {
-                    List {
-                        ForEach(store.historyConversations) { conversation in
-                            conversationRow(conversation)
-                        }
-                        .onDelete { offsets in
-                            for index in offsets {
-                                store.deleteConversation(id: store.historyConversations[index].id)
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                }
-            }
-        }
-        .dismissKeyboardOnTap()
-    }
-
-    private func conversationRow(_ conversation: Conversation) -> some View {
-        let isActive = conversation.id == store.activeConversationID
-        return Button {
-            store.switchConversation(to: conversation.id)
-            dismiss()
-        } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(conversation.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Palette.ink)
-                        .lineLimit(1)
-                    Text(conversation.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Palette.secondaryText)
-                }
-                Spacer()
-                if isActive {
-                    Text("Aktiv")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(Palette.accent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .glassCapsuleBackground()
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .glassCard(cornerRadius: 16)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-    }
 }
 
 // MARK: - Typing indicator
