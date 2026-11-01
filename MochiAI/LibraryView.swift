@@ -33,33 +33,52 @@ struct LibraryView: View {
         case failure(String)
     }
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 12) {
-                    SidebarButton()
-                    ScreenTitle(text: "Bibliothek")
-                }
+    /// Scroll anchor of the Einstellungen section (v3.0.1, Bug 3):
+    /// the sidebar gear routes here via `store.openSettings()`.
+    private static let settingsAnchorID = "library.settings"
 
-                #if ADMIN_BUILD
-                // Admin build: the Invite-Codes section leads the
-                // Bibliothek — creating codes is what this build is
-                // opened for, so it is the first thing on screen.
-                AdminInvitesSection()
-                #endif
-                companionSection
-                savedSection
-                profileSection
-                settingsSection
-                resetSection
-                aboutSection
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    HStack(spacing: 12) {
+                        SidebarButton()
+                        ScreenTitle(text: "Bibliothek")
+                    }
+
+                    #if ADMIN_BUILD
+                    // Admin build: the Invite-Codes section leads the
+                    // Bibliothek — creating codes is what this build is
+                    // opened for, so it is the first thing on screen.
+                    AdminInvitesSection()
+                    #endif
+                    companionSection
+                    savedSection
+                    profileSection
+                    settingsSection
+                        .id(Self.settingsAnchorID)
+                    resetSection
+                    aboutSection
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 24)
+            .scrollDismissesKeyboard(.interactively)
+            .dismissKeyboardOnTap()
+            .onChange(of: store.settingsFocusToken) { _, token in
+                // Gear route (v3.0.1): land ON the Einstellungen
+                // section instead of the top of the Bibliothek.
+                // The async hop lets the section crossfade settle
+                // so the scroll measures the final layout.
+                guard token > 0 else { return }
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        proxy.scrollTo(Self.settingsAnchorID, anchor: .top)
+                    }
+                }
+            }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .dismissKeyboardOnTap()
         .onAppear {
             if !didLoadDrafts {
                 loadDrafts()

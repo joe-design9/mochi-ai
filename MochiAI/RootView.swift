@@ -45,8 +45,10 @@ struct RootView: View {
             if store.isSidebarOpen {
                 // Dim layer: a plain black overlay (a solid color,
                 // never a material) — tap anywhere outside the panel
-                // to close it.
-                Color.black.opacity(0.45)
+                // to close it. v3.0.1: 0.45 → 0.32, so the backdrop's
+                // light structure still reaches the panel's glass
+                // instead of being smothered by the dim (Bug 1).
+                Color.black.opacity(0.32)
                     .ignoresSafeArea()
                     .onTapGesture { store.isSidebarOpen = false }
                     .transition(.opacity)

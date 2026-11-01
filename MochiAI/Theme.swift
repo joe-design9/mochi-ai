@@ -84,9 +84,19 @@ enum Palette {
     }
 }
 
-// MARK: - Backdrop (pure black canvas + an extremely subtle NEUTRAL
-// sheen — monochrome only, no hue; just enough depth for the glass
-// above it to refract, like the real Muse app's dark UI)
+// MARK: - Backdrop (pure black canvas + a NEUTRAL monochrome
+// light structure — no hue; the glass above it needs real light
+// variation to refract, like the real Muse app's dark UI)
+//
+// v3.0.1 (Bug 1): v3.0.0's backdrop was dialed down to a whisper
+// (top sheen 0.075) — over that flat black, every .glassEffect
+// surface read as a plain gray plastic plate on the real first
+// screens (gate / empty chat / library) and on Joel's device the
+// Liquid Glass "was gone". The light structure is restored:
+// a stronger top sheen, a soft glow low-center behind the
+// composer, a faint glow on the left where the sidebar panel
+// floats, and the bottom-right counter-sheen — all strictly
+// monochrome white opacities, same layout-safety rules as before.
 //
 // LAYOUT SAFETY (v2.0.1 fix, kept): the backdrop must NEVER take part
 // in the layout of anything around it. The v2.0.0 version put
@@ -109,23 +119,49 @@ struct AppBackdrop: View {
             let sheen = max(size.width, size.height) * 1.15
             ZStack {
                 Palette.paper
-                // Neutral sheen, top — a whisper of gray light on the
-                // black canvas (in light mode: white on light gray).
+                // Neutral sheen, top — gray light on the black
+                // canvas (in light mode: white on light gray).
+                // v3.0.1: 0.075 → 0.135 (see the MARK note above).
                 Circle()
                     .fill(RadialGradient(
                         colors: [
-                            Color.white.opacity(dark ? 0.075 : 0.55),
+                            Color.white.opacity(dark ? 0.135 : 0.55),
                             .clear,
                         ],
                         center: .center, startRadius: 0, endRadius: sheen / 2
                     ))
                     .frame(width: sheen, height: sheen)
                     .position(x: size.width * 0.5, y: size.height * -0.06)
+                // Soft glow, bottom-center — sits behind the chat
+                // composer capsule so its glass has something to
+                // refract on the (otherwise empty) first screen.
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [
+                            Color.white.opacity(dark ? 0.055 : 0.3),
+                            .clear,
+                        ],
+                        center: .center, startRadius: 0, endRadius: sheen * 0.4
+                    ))
+                    .frame(width: sheen * 0.8, height: sheen * 0.8)
+                    .position(x: size.width * 0.5, y: size.height * 1.04)
+                // Faint glow, left-center — behind the region the
+                // floating sidebar panel covers when it slides over.
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [
+                            Color.white.opacity(dark ? 0.05 : 0.28),
+                            .clear,
+                        ],
+                        center: .center, startRadius: 0, endRadius: sheen * 0.4
+                    ))
+                    .frame(width: sheen * 0.8, height: sheen * 0.8)
+                    .position(x: size.width * -0.04, y: size.height * 0.44)
                 // Fainter counter-sheen, bottom-right, for depth.
                 Circle()
                     .fill(RadialGradient(
                         colors: [
-                            Color.white.opacity(dark ? 0.04 : 0.35),
+                            Color.white.opacity(dark ? 0.06 : 0.35),
                             .clear,
                         ],
                         center: .center, startRadius: 0, endRadius: sheen / 2

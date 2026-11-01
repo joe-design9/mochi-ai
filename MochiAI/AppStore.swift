@@ -38,6 +38,21 @@ final class AppStore: ObservableObject {
     /// sidebar itself can close it after a selection.
     @Published var isSidebarOpen = false
 
+    /// v3.0.1 (Bug 3): bumped by `openSettings()` — the Library
+    /// observes the token and scrolls its Einstellungen section
+    /// into view. A bare tab switch was NOT enough: the gear button
+    /// used to land the user at the TOP of the Bibliothek
+    /// (Begleiter), with Einstellungen a full screen of scrolling
+    /// below the fold — which read as "Settings don't open".
+    @Published private(set) var settingsFocusToken = 0
+
+    /// The gear button's action: go to the Bibliothek AND land on
+    /// its Einstellungen section (LibraryView does the scrolling).
+    func openSettings() {
+        selectedTab = .library
+        settingsFocusToken += 1
+    }
+
     // MARK: Companion
 
     /// The currently selected animated companion (persisted as "companionID").

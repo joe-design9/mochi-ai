@@ -277,7 +277,7 @@ struct SidebarView: View {
             .accessibilityLabel("Neuer Chat")
 
             Button {
-                store.selectedTab = .library
+                store.openSettings()
                 close()
             } label: {
                 Image(systemName: "gearshape.fill")
@@ -331,9 +331,11 @@ struct SidebarView: View {
     /// - `-QASidebarKeys`: focuses the Verläufe search (software
     ///   keyboard up) with the sidebar open — the state where Joel's
     ///   bottom bar reportedly vanishes.
-    /// - `-QAGearRoute`: performs the gear button's EXACT v3.0.0
+    /// - `-QAGearRoute`: performs the gear button's EXACT
     ///   action, so the capture shows where the "Einstellungen"
-    ///   route actually lands the user (Bug 3 reproduction).
+    ///   route actually lands the user (Bug 3 reproduction in
+    ///   v3.0.0; after the v3.0.1 fix the same capture must show
+    ///   the Einstellungen section itself).
     private func runQASidebarDriver() async {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-QASidebarKeys") {
@@ -342,7 +344,7 @@ struct SidebarView: View {
         }
         if arguments.contains("-QAGearRoute") {
             try? await Task.sleep(nanoseconds: 1_600_000_000)
-            store.selectedTab = .library
+            store.openSettings()
             close()
         }
     }

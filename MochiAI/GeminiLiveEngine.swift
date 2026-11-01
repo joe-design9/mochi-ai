@@ -91,6 +91,13 @@ final class GeminiLiveEngine: ObservableObject {
 #endif
     private static let primeBytes = 19_200   // 0.40 s @ 24 kHz Int16 mono
     private static let chunkBytes = 14_400   // 0.30 s @ 24 kHz Int16 mono
+    /// v3.0.1 (Bug 4): mid-turn RESUME threshold. After a mid-turn
+    /// underrun the pump keeps its primed state and resumes as soon
+    /// as ~0.15 s of fresh audio sits in the jitter buffer — it no
+    /// longer re-accumulates the full 0.40 s prime cushion, which
+    /// was the measured 638 ms silence hole (see the completion
+    /// handler in `schedulePCM`).
+    private static let resumeBytes = 7_200   // 0.15 s @ 24 kHz Int16 mono
 
     /// Playback generation (v3.0.0 — the barge-in stutter fix).
     /// Bumped by every flush and every full playback reset. Buffer
@@ -453,9 +460,12 @@ final class GeminiLiveEngine: ObservableObject {
     /// - Before priming: waits until ~0.4 s is buffered (or the turn
     ///   already ended — a very short answer plays with what it has).
     /// - While primed: cuts ~0.3 s buffers as long as enough data is
-    ///   there; at turn end schedules the remainder as one last
-    ///   buffer. Buffer completions re-enter here, which chains the
-    ///   scheduling and detects the drained queue.
+    ///   there; if the queue has run empty mid-turn (underrun), a
+    ///   partial buffer of ≥ `resumeBytes` (~0.15 s) is scheduled
+    ///   immediately instead of waiting for a full chunk; at turn
+    ///   end schedules the remainder as one last buffer. Buffer
+    ///   completions re-enter here, which chains the scheduling
+    ///   and detects the drained queue.
     private func pumpPlayback() {
         if !playbackPrimed {
             let hasCushion = jitterData.count >= Self.primeBytes
@@ -472,6 +482,18 @@ final class GeminiLiveEngine: ObservableObject {
             let chunk = jitterData.prefix(Self.chunkBytes)
             jitterData.removeFirst(Self.chunkBytes)
             schedulePCM(Data(chunk))
+        }
+        if scheduledBuffers == 0, jitterData.count >= Self.resumeBytes {
+            // Mid-turn underrun resume (v3.0.1, Bug 4): the player
+            // starved because arrivals lag real-time (the normal
+            // bursty Gemini Live cadence). Scheduling the partial
+            // buffer now bounds the silence hole to roughly one
+            // arrival step; the legacy pump idled until a full
+            // chunk — or, after a drain reset, the full prime
+            // cushion — had accumulated again.
+            let partial = jitterData.prefix(min(jitterData.count, Self.chunkBytes))
+            jitterData.removeFirst(partial.count)
+            schedulePCM(Data(partial))
         }
         if turnAudioEnded, !jitterData.isEmpty,
            scheduledBuffers < Self.maxScheduledBuffers {
@@ -534,22 +556,39 @@ final class GeminiLiveEngine: ObservableObject {
                 guard generation == self.playbackGeneration else { return }
                 self.scheduledBuffers = max(0, self.scheduledBuffers - 1)
                 if self.scheduledBuffers == 0, self.jitterData.isEmpty {
-#if QA
                     if self.turnAudioEnded {
+#if QA
                         self.qaLog("DRAIN turn-end")
+#endif
+                        // Clean turn end: the queue played out and
+                        // the server closed the turn. Full reset —
+                        // the NEXT turn primes from scratch so it
+                        // gets the full jitter cushion again instead
+                        // of starting dry.
+                        self.turnAudioEnded = false
+                        self.playbackPrimed = false
+                        self.isModelSpeaking = false
                     } else {
+#if QA
                         self.qaDrainCount += 1
                         self.qaLog("DRAIN mid-turn #\(self.qaDrainCount)")
                         self.qaNoteStarvation()
-                    }
 #endif
-                    // Queue fully drained — after a real underrun
-                    // (mid-turn network stall) AND at a clean turn
-                    // end alike, the next audio primes from scratch
-                    // instead of starting dry and stuttering again.
-                    self.turnAudioEnded = false
-                    self.playbackPrimed = false
-                    self.isModelSpeaking = false
+                        // Mid-turn underrun (v3.0.1, Bug 4): the
+                        // queue drained only because arrivals lag
+                        // real-time — the turn is NOT over. The
+                        // legacy pump reset playbackPrimed here
+                        // too, so the next audio first had to
+                        // re-accumulate the full 0.40 s prime
+                        // cushion: the measured 638 ms silence
+                        // hole in the QA live sim, and Joel's
+                        // still-stuttering calls. Now the primed
+                        // state (and the speaking state — the
+                        // answer is still ongoing) survives; the
+                        // pump resumes on the ~0.15 s threshold
+                        // as soon as fresh audio lands.
+                        self.pumpPlayback()
+                    }
                 } else {
                     self.pumpPlayback()
                 }
