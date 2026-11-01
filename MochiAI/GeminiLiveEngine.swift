@@ -75,6 +75,20 @@ final class GeminiLiveEngine: ObservableObject {
     private var scheduledBuffers = 0
     private var playbackPrimed = false
     private var turnAudioEnded = false
+#if QA
+    // v3.0.1 QA instrumentation (never in release builds): a timed
+    // log of playback-pump events so the voice-stutter diagnosis is
+    // EVIDENCE, not theory. `-QALiveSim` feeds the pump a synthetic
+    // chunk cadence (burst → starved drip → burst) and writes the
+    // log to Documents/qa-live-log.txt for CI to collect.
+    private var qaLogEnabled = false
+    private var qaLogStart = Date()
+    private var qaEvents: [String] = []
+    private var qaStarveAt: Date?
+    private var qaDrainCount = 0
+    private var qaMaxGapMs = 0
+    private var qaReprimeCount = 0
+#endif
     private static let primeBytes = 19_200   // 0.40 s @ 24 kHz Int16 mono
     private static let chunkBytes = 14_400   // 0.30 s @ 24 kHz Int16 mono
 
@@ -412,6 +426,9 @@ final class GeminiLiveEngine: ObservableObject {
     private func playAudioChunk(_ data: Data) {
         guard playbackFormat != nil, data.count >= 2 else { return }
         jitterData.append(data)
+#if QA
+        qaLog("ARRIVE +\(data.count) jitter=\(jitterData.count) sched=\(scheduledBuffers)")
+#endif
         pumpPlayback()
     }
 
@@ -446,6 +463,9 @@ final class GeminiLiveEngine: ObservableObject {
             guard hasCushion || shortTurn else { return }
             playbackPrimed = true
             isModelSpeaking = true
+#if QA
+            qaNotePrime()
+#endif
         }
         while jitterData.count >= Self.chunkBytes,
               scheduledBuffers < Self.maxScheduledBuffers {
@@ -462,6 +482,9 @@ final class GeminiLiveEngine: ObservableObject {
             jitterData.removeAll()
             schedulePCM(rest)
         }
+#if QA
+        qaNoteStarvation()
+#endif
     }
 
     /// Builds ONE AVAudioPCMBuffer (24 kHz Int16 mono — the format the
@@ -485,6 +508,10 @@ final class GeminiLiveEngine: ObservableObject {
             }
         }
         scheduledBuffers += 1
+#if QA
+        qaEndStarve(via: "RESUME")
+        qaLog("SCHED n=\(scheduledBuffers) bytes=\(data.count)")
+#endif
         // Capture the CURRENT playback generation: the completion
         // below is only allowed to touch the bookkeeping if no flush
         // or reset has happened since this buffer was scheduled.
@@ -507,6 +534,15 @@ final class GeminiLiveEngine: ObservableObject {
                 guard generation == self.playbackGeneration else { return }
                 self.scheduledBuffers = max(0, self.scheduledBuffers - 1)
                 if self.scheduledBuffers == 0, self.jitterData.isEmpty {
+#if QA
+                    if self.turnAudioEnded {
+                        self.qaLog("DRAIN turn-end")
+                    } else {
+                        self.qaDrainCount += 1
+                        self.qaLog("DRAIN mid-turn #\(self.qaDrainCount)")
+                        self.qaNoteStarvation()
+                    }
+#endif
                     // Queue fully drained — after a real underrun
                     // (mid-turn network stall) AND at a clean turn
                     // end alike, the next audio primes from scratch
@@ -674,4 +710,123 @@ final class GeminiLiveEngine: ObservableObject {
               let string = String(data: jsonData, encoding: .utf8) else { return }
         task.send(.string(string)) { _ in }
     }
+
+    // MARK: QA live-pump simulation (never in release builds)
+
+#if QA
+    private func qaLog(_ event: String) {
+        guard qaLogEnabled else { return }
+        let ms = Int(Date().timeIntervalSince(qaLogStart) * 1000)
+        qaEvents.append("[+\(ms)ms] \(event)")
+    }
+
+    /// A false→true priming transition. If it ends a starvation
+    /// window it counts as a REPRIME — in the legacy pump every
+    /// mid-turn underrun forces one, and the window it closes is
+    /// the audible hole (the full 0.4 s prime cushion must be
+    /// re-accumulated before anything schedules again).
+    private func qaNotePrime() {
+        if qaStarveAt != nil { qaReprimeCount += 1 }
+        qaEndStarve(via: "REPRIME")
+        qaLog("PRIME jitter=\(jitterData.count)")
+    }
+
+    /// Marks the start of an audible hole: the player has nothing
+    /// scheduled while the turn is still ongoing (queue drained, or
+    /// only a sub-chunk remainder that the pump refuses to schedule).
+    private func qaNoteStarvation() {
+        guard qaLogEnabled, qaStarveAt == nil,
+              playbackPrimed, scheduledBuffers == 0, !turnAudioEnded
+        else { return }
+        qaStarveAt = Date()
+        qaLog("STARVE jitter=\(jitterData.count)")
+    }
+
+    /// Closes an open starvation window at the next schedule and
+    /// records the hole's length — THE stutter metric.
+    private func qaEndStarve(via: String) {
+        guard let starveAt = qaStarveAt else { return }
+        let gap = Int(Date().timeIntervalSince(starveAt) * 1000)
+        qaMaxGapMs = max(qaMaxGapMs, gap)
+        qaStarveAt = nil
+        qaLog("\(via) gapMs=\(gap)")
+    }
+
+    /// Feeds the REAL playback pump a synthetic server cadence with
+    /// silence PCM — no socket, no mic stream, no API key — so CI
+    /// can measure the pump's underrun behaviour deterministically:
+    ///   phase 1: 1.2 s burst (primes, queues)
+    ///   phase 2: drip at 0.6x realtime for ~6 s (starves the queue
+    ///            mid-turn: arrival pace below playback pace is the
+    ///            normal bursty Gemini Live pattern)
+    ///   phase 3: 0.8 s recovery burst, then a clean turn end.
+    /// Legacy pump expectation: mid-turn DRAINs followed by REPRIMEs
+    /// (each = a ≥0.4 s silence hole). Fixed pump expectation:
+    /// mid-turn DRAINs followed by fast RESUMEs (≤ one drip step).
+    func qaSimulatePlayback() async {
+        qaLogEnabled = true
+        qaLogStart = Date()
+        qaEvents = []
+        qaStarveAt = nil
+        qaDrainCount = 0
+        qaMaxGapMs = 0
+        qaReprimeCount = 0
+        qaLog("SIM START")
+        // Output side of the graph only (mirrors startAudio minus
+        // the mic tap / uplink converter, which the pump never uses).
+        playbackFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 24_000,
+            channels: 1,
+            interleaved: true
+        )
+        let engine = audioEngine
+        if !engine.attachedNodes.contains(playerNode) {
+            engine.attach(playerNode)
+        }
+        if let playbackFormat,
+           engine.outputConnectionPoints(for: playerNode, outputBus: 0).isEmpty {
+            engine.connect(playerNode, to: engine.mainMixerNode, format: playbackFormat)
+        }
+        engine.prepare()
+        do {
+            try engine.start()
+            playerNode.play()
+            qaLog("ENGINE RUNNING")
+        } catch {
+            qaLog("ENGINE START FAILED: \(error)")
+            qaWriteLog()
+            return
+        }
+        func silence(_ bytes: Int) -> Data { Data(repeating: 0, count: bytes) }
+        // Phase 1 — 1.2 s at once.
+        playAudioChunk(silence(57_600))
+        // Phase 2 — 0.18 s of audio every 0.30 s (0.6x realtime).
+        for _ in 0..<20 {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            playAudioChunk(silence(8_640))
+        }
+        // Phase 3 — recovery burst + clean turn end.
+        playAudioChunk(silence(38_400))
+        finishAudioTurn()
+        // Wait for the queue to drain completely (max ~5 s).
+        for _ in 0..<50 {
+            if scheduledBuffers == 0, jitterData.isEmpty { break }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        qaLog("SIM END drains=\(qaDrainCount) maxGapMs=\(qaMaxGapMs) reprimes=\(qaReprimeCount)")
+        qaWriteLog()
+    }
+
+    private func qaWriteLog() {
+        let text = qaEvents.joined(separator: "\n") + "\n"
+        guard let directory = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first else { return }
+        try? text.write(
+            to: directory.appendingPathComponent("qa-live-log.txt"),
+            atomically: true, encoding: .utf8
+        )
+    }
+#endif
 }

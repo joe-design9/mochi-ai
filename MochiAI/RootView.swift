@@ -113,11 +113,16 @@ struct RootView: View {
     }
 
 #if QA
-    /// `-QASidebar`: opens the sidebar shortly after launch so CI can
+    /// `-QASidebar` (and the v3.0.1 sidebar state drivers
+    /// `-QASidebarKeys` / `-QAGearRoute`, which act inside the opened
+    /// panel): opens the sidebar shortly after launch so CI can
     /// photograph the v3.0.0 navigation (TABS + seeded Verläufe +
     /// bottom search bar) in its opened state.
     private func openSidebarForQAIfRequested() async {
-        guard ProcessInfo.processInfo.arguments.contains("-QASidebar")
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-QASidebar")
+            || arguments.contains("-QASidebarKeys")
+            || arguments.contains("-QAGearRoute")
         else { return }
         try? await Task.sleep(nanoseconds: 900_000_000)
         store.isSidebarOpen = true

@@ -17,6 +17,14 @@ struct SidebarView: View {
     @State private var searchText = ""
     @State private var appeared = false
     @FocusState private var searchFocused: Bool
+#if QA
+    /// v3.0.1 QA geometry proof for the bottom bar: the bar's global
+    /// maxY and the panel's global maxY, reported live so a capture
+    /// can PROVE the bar sits at the panel's bottom edge (Joel's
+    /// device report: "die slidebar unten die soll bleiben").
+    @State private var qaBarMaxY: CGFloat = 0
+    @State private var qaPanelMaxY: CGFloat = 0
+#endif
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,6 +52,15 @@ struct SidebarView: View {
             withAnimation(.easeOut(duration: 0.35)) { appeared = true }
         }
         .dismissKeyboardOnTap()
+#if QA
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.frame(in: .global).maxY
+        } perform: { newValue in
+            qaPanelMaxY = newValue
+        }
+        .overlay(alignment: .top) { qaGeometryBadge }
+        .task { await runQASidebarDriver() }
+#endif
     }
 
     // MARK: Header — companion, name, active engine
@@ -278,10 +295,56 @@ struct SidebarView: View {
         .padding(.horizontal, 14)
         .padding(.top, 10)
         .padding(.bottom, 14)
+#if QA
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.frame(in: .global).maxY
+        } perform: { newValue in
+            qaBarMaxY = newValue
+        }
+#endif
     }
 
     private func close() {
         searchFocused = false
         store.isSidebarOpen = false
     }
+
+    // MARK: QA drivers (never in release builds)
+
+#if QA
+    /// Numeric proof overlay (QA builds only): the bottom bar's
+    /// global maxY against the panel's global maxY. bar == panel
+    /// means the bar is pinned at the panel's bottom edge (the bar's
+    /// own bottom padding is inside its measured frame).
+    private var qaGeometryBadge: some View {
+        Text("QA bar=\(Int(qaBarMaxY)) panel=\(Int(qaPanelMaxY))")
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.red)
+            .padding(.top, 66)
+            .allowsHitTesting(false)
+    }
+
+    /// Drives the two sidebar states CI cannot tap:
+    /// - `-QASidebarKeys`: focuses the Verläufe search (software
+    ///   keyboard up) with the sidebar open — the state where Joel's
+    ///   bottom bar reportedly vanishes.
+    /// - `-QAGearRoute`: performs the gear button's EXACT v3.0.0
+    ///   action, so the capture shows where the "Einstellungen"
+    ///   route actually lands the user (Bug 3 reproduction).
+    private func runQASidebarDriver() async {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-QASidebarKeys") {
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            searchFocused = true
+        }
+        if arguments.contains("-QAGearRoute") {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            store.selectedTab = .library
+            close()
+        }
+    }
+#endif
 }

@@ -383,6 +383,41 @@ final class AppStore: ObservableObject {
                 date: now.addingTimeInterval(-540)
             ),
         ]
+        if arguments.contains("-QAManyHistory") {
+            // v3.0.1 QA: a long Verläufe list (12 threads) so the
+            // sidebar captures prove the bottom bar (search / compose
+            // / gear) stays pinned and reachable while the list is
+            // long and scrollable — the state Joel's device report
+            // targets ("die slidebar unten die soll bleiben").
+            var seeded: [Conversation] = [
+                Conversation(
+                    createdAt: now.addingTimeInterval(-3600),
+                    updatedAt: now.addingTimeInterval(-540),
+                    messages: messages
+                ),
+            ]
+            for index in 1...11 {
+                let stamp = now.addingTimeInterval(Double(-3600 - index * 1800))
+                seeded.append(Conversation(
+                    createdAt: stamp,
+                    updatedAt: stamp,
+                    messages: [
+                        ChatMessage(
+                            role: .user,
+                            text: "QA Verlauf \(index): Worum ging es hier?",
+                            date: stamp
+                        ),
+                        ChatMessage(
+                            role: .assistant,
+                            text: "Seed-Antwort für Verlauf \(index).",
+                            date: stamp.addingTimeInterval(30)
+                        ),
+                    ]
+                ))
+            }
+            conversations = seeded
+            activeConversationID = seeded.first?.id
+        }
     }
 
     /// The long multi-paragraph sample reply for the QA screenshot

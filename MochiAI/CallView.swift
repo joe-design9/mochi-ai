@@ -81,6 +81,12 @@ struct CallView: View {
             // only — never start a real call in CI (no microphone
             // prompt, no network).
             if ProcessInfo.processInfo.arguments.contains("-QACallPreview") {
+                // v3.0.1: `-QALiveSim` additionally runs the live
+                // pump's synthetic-cadence self-test (log file only;
+                // the call itself still never starts).
+                if ProcessInfo.processInfo.arguments.contains("-QALiveSim") {
+                    controller.runLiveSimulation()
+                }
                 return
             }
 #endif
@@ -366,6 +372,18 @@ final class CallController: ObservableObject {
     }
 
     // MARK: Start
+
+#if QA
+    /// v3.0.1 QA: runs the live engine's synthetic-cadence playback
+    /// self-test (`-QALiveSim`). No call, no socket, no mic — the
+    /// engine writes its pump event log to Documents/qa-live-log.txt
+    /// and CI collects it as the voice-stutter evidence.
+    func runLiveSimulation() {
+        Task { @MainActor in
+            await liveEngine.qaSimulatePlayback()
+        }
+    }
+#endif
 
     func start(store: AppStore, dismiss: @escaping () -> Void) {
         guard !callActive else { return }
