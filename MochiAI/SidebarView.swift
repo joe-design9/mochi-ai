@@ -55,7 +55,7 @@ struct SidebarView: View {
 #if QA
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.frame(in: .global).maxY
-        } perform: { newValue in
+        } action: { newValue in
             qaPanelMaxY = newValue
         }
         .overlay(alignment: .top) { qaGeometryBadge }
@@ -298,7 +298,7 @@ struct SidebarView: View {
 #if QA
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.frame(in: .global).maxY
-        } perform: { newValue in
+        } action: { newValue in
             qaBarMaxY = newValue
         }
 #endif
